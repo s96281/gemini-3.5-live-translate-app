@@ -10,7 +10,7 @@ on:
 jobs:
   # 1. 在 Windows 原生環境打包 Windows EXE
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4

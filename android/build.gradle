@@ -6,13 +6,39 @@ allprojects {
 }
 
 rootProject.buildDir = "../build"
+
+rootProject.ext {
+    flutter = [
+        compileSdkVersion: 34,
+        minSdkVersion    : 23,
+        targetSdkVersion : 34,
+        ndkVersion       : "27.0.12077973"
+    ]
+}
+
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
+    project.ext.set("flutter", rootProject.ext.flutter)
+    if (!project.extensions.findByName("flutter")) {
+        project.extensions.add("flutter", rootProject.ext.flutter)
+    }
 }
+
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty("android")) {
+            project.android {
+                compileSdkVersion 34
+            }
+        }
+    }
 }
 
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
+
