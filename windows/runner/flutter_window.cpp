@@ -24,6 +24,7 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetupSystemAudioChannels();
+  SetupWindowChannels();
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -114,6 +115,72 @@ void FlutterWindow::FlushAudioQueueToSink() {
   }
 }
 
+void FlutterWindow::SetupWindowChannels() {
+  auto messenger = flutter_controller_->engine()->messenger();
+  window_channel_ = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      messenger, "com.gemini.livetranslate/window",
+      &flutter::StandardMethodCodec::GetInstance());
+
+  window_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+        HWND hwnd = GetHandle();
+        if (!hwnd) {
+          result->Success(flutter::EncodableValue(false));
+          return;
+        }
+
+        if (call.method_name() == "enterMiniOverlay") {
+          // 記住原本視窗座標與尺寸
+          RECT rect;
+          GetWindowRect(hwnd, &rect);
+          if (rect.right - rect.left > 250 && rect.bottom - rect.top > 250) {
+            normal_rect_ = rect;
+          }
+
+          int mini_width = 520;
+          int mini_height = 160;
+          if (call.arguments()) {
+            if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
+              auto w_it = args->find(flutter::EncodableValue("width"));
+              if (w_it != args->end()) mini_width = std::get<int>(w_it->second);
+              auto h_it = args->find(flutter::EncodableValue("height"));
+              if (h_it != args->end()) mini_height = std::get<int>(h_it->second);
+            }
+          }
+
+          // 置頂並縮小至懸浮條尺寸
+          SetWindowPos(hwnd, HWND_TOPMOST, rect.left, rect.top, mini_width, mini_height, SWP_SHOWWINDOW);
+          result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "exitMiniOverlay") {
+          int w = normal_rect_.right - normal_rect_.left;
+          int h = normal_rect_.bottom - normal_rect_.top;
+          if (w < 300 || h < 400) {
+            w = 420;
+            h = 750;
+          }
+          int x = normal_rect_.left;
+          int y = normal_rect_.top;
+          // 取消置頂並恢復主視窗尺寸
+          SetWindowPos(hwnd, HWND_NOTOPMOST, x, y, w, h, SWP_SHOWWINDOW);
+          result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "setAlwaysOnTop") {
+          bool on_top = false;
+          if (call.arguments()) {
+            if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
+              auto it = args->find(flutter::EncodableValue("alwaysOnTop"));
+              if (it != args->end()) on_top = std::get<bool>(it->second);
+            }
+          }
+          SetWindowPos(hwnd, on_top ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                       SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+          result->Success(flutter::EncodableValue(true));
+        } else {
+          result->NotImplemented();
+        }
+      });
+}
+
 void FlutterWindow::OnDestroy() {
   if (wasapi_capture_) {
     wasapi_capture_->Stop();
@@ -126,6 +193,7 @@ void FlutterWindow::OnDestroy() {
   event_sink_ = nullptr;
   method_channel_ = nullptr;
   event_channel_ = nullptr;
+  window_channel_ = nullptr;
 
   if (flutter_controller_) {
     flutter_controller_ = nullptr;

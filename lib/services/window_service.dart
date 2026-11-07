@@ -1,0 +1,46 @@
+import 'dart:io';
+import 'package:flutter/services.dart';
+
+/// Service to handle native window actions like Mini Overlay (Floating Picture-in-Picture)
+/// and Always-on-Top on desktop platforms (Windows).
+class WindowService {
+  static const MethodChannel _channel = MethodChannel('com.gemini.livetranslate/window');
+
+  /// Requests the OS to switch into a compact, always-on-top floating subtitle overlay.
+  static Future<bool> enterMiniOverlay({int width = 520, int height = 160}) async {
+    if (!Platform.isWindows) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('enterMiniOverlay', {
+        'width': width,
+        'height': height,
+      });
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Requests the OS to restore the window to standard full interface dimensions.
+  static Future<bool> exitMiniOverlay() async {
+    if (!Platform.isWindows) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('exitMiniOverlay');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Sets window Always-on-Top state.
+  static Future<bool> setAlwaysOnTop(bool alwaysOnTop) async {
+    if (!Platform.isWindows) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('setAlwaysOnTop', {
+        'alwaysOnTop': alwaysOnTop,
+      });
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+}

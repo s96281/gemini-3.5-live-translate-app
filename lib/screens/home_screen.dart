@@ -9,9 +9,11 @@ import '../models/translation_turn.dart';
 import '../services/audio_player_service.dart';
 import '../services/audio_recorder_service.dart';
 import '../services/gemini_live_client.dart';
+import '../services/window_service.dart';
 import '../widgets/api_key_dialog.dart';
 import '../widgets/audio_wave_visualizer.dart';
 import '../widgets/language_selector.dart';
+import '../widgets/mini_overlay_hud.dart';
 import '../widgets/modern_control_bar.dart';
 import '../widgets/subtitle_card.dart';
 
@@ -33,16 +35,19 @@ class _HomeScreenState extends State<HomeScreen> {
   LiveConnectionState _connectionState = LiveConnectionState.disconnected;
   double _currentAmplitude = 0.0;
   bool _isMuted = false;
+  bool _isMiniOverlayMode = false;
 
   // Subtitle / Turn State
   TranslationTurn? _currentTurn;
   final List<TranslationTurn> _history = [];
   final ScrollController _scrollController = ScrollController();
+  Timer? _segmentTimer;
 
   // Stream Subscriptions
   StreamSubscription? _stateSub;
   StreamSubscription? _sourceSub;
   StreamSubscription? _targetSub;
+  StreamSubscription? _turnCompleteSub;
   StreamSubscription? _audioOutSub;
   StreamSubscription? _errorSub;
   StreamSubscription? _recorderChunkSub;
@@ -58,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _cancelSubscriptions();
+    _segmentTimer?.cancel();
     _recorderChunkSub?.cancel();
     _recorderAmpSub?.cancel();
     _liveClient?.dispose();
@@ -181,6 +187,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _onTargetSpeechReceived(text);
       });
 
+      _turnCompleteSub = _liveClient!.turnCompleteStream.listen((_) {
+        _finalizeCurrentTurn();
+      });
+
       _audioOutSub = _liveClient!.audioOutputStream.listen((pcmBytes) {
         if (!_isMuted) {
           _playerService.feedPcmChunk(pcmBytes);
@@ -214,6 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _stopSession() async {
+    _segmentTimer?.cancel();
     await _recorderService.stopRecording();
     await _liveClient?.disconnect();
     await _playerService.stop();
@@ -240,6 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _currentTurn!.sourceText += text;
     });
     _scrollToBottom();
+    _scheduleAutoSegment(text);
   }
 
   void _onTargetSpeechReceived(String text) {
@@ -252,6 +264,55 @@ class _HomeScreenState extends State<HomeScreen> {
       _currentTurn!.targetText += text;
     });
     _scrollToBottom();
+    _scheduleAutoSegment(text);
+  }
+
+  /// 智慧自動分段機制：
+  /// 當句子包含標點符號停頓（。？！.?!）超過 800ms，或語流停頓超過 1800ms 無新文字，
+  /// 自動結算當前回合並沉澱為歷史記錄，開啟新卡片。
+  void _scheduleAutoSegment(String recentChunk) {
+    _segmentTimer?.cancel();
+
+    final trimmed = recentChunk.trimRight();
+    final bool hasPunctuation = trimmed.endsWith('。') ||
+        trimmed.endsWith('！') ||
+        trimmed.endsWith('？') ||
+        trimmed.endsWith('.') ||
+        trimmed.endsWith('!') ||
+        trimmed.endsWith('?') ||
+        trimmed.endsWith('\n');
+
+    final durationMs = hasPunctuation ? 800 : 1800;
+
+    _segmentTimer = Timer(Duration(milliseconds: durationMs), () {
+      _finalizeCurrentTurn();
+    });
+  }
+
+  void _finalizeCurrentTurn() {
+    _segmentTimer?.cancel();
+    if (_currentTurn == null) return;
+    if (_currentTurn!.sourceText.trim().isEmpty && _currentTurn!.targetText.trim().isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _currentTurn!.isFinal = true;
+      _history.insert(0, _currentTurn!);
+      _currentTurn = null;
+    });
+  }
+
+  Future<void> _toggleMiniOverlayMode() async {
+    final next = !_isMiniOverlayMode;
+    if (next) {
+      await WindowService.enterMiniOverlay(width: 520, height: 160);
+    } else {
+      await WindowService.exitMiniOverlay();
+    }
+    setState(() {
+      _isMiniOverlayMode = next;
+    });
   }
 
   void _scrollToBottom() {
@@ -265,9 +326,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _cancelSubscriptions() {
+    _segmentTimer?.cancel();
     _stateSub?.cancel();
     _sourceSub?.cancel();
     _targetSub?.cancel();
+    _turnCompleteSub?.cancel();
     _audioOutSub?.cancel();
     _errorSub?.cancel();
   }
@@ -330,6 +393,22 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final targetLang = SupportedLanguages.findByCode(_config.targetLanguageCode);
     final isRecording = _recorderService.isRecording;
+
+    if (_isMiniOverlayMode) {
+      return MiniOverlayHud(
+        currentTurn: _currentTurn,
+        isRecording: isRecording,
+        isMuted: _isMuted,
+        onToggleRecording: _toggleTranslationSession,
+        onToggleMute: () {
+          setState(() {
+            _isMuted = !_isMuted;
+            _playerService.isMuted = _isMuted;
+          });
+        },
+        onExitOverlay: _toggleMiniOverlayMode,
+      );
+    }
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF090D16) : const Color(0xFFF3F6FC),
@@ -480,6 +559,40 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const Spacer(),
+
+          // Mini Floating Overlay Button (PiP Mode)
+          Tooltip(
+            message: '切換為置頂懸浮字幕窗 (Mini Overlay)',
+            child: InkWell(
+              onTap: _toggleMiniOverlayMode,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.06) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDark ? Colors.white10 : const Color(0xFFCBD5E1),
+                  ),
+                  boxShadow: isDark
+                      ? []
+                      : [
+                          const BoxShadow(
+                            color: Color(0x0C000000),
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                ),
+                child: Icon(
+                  Icons.picture_in_picture_alt_rounded,
+                  size: 15,
+                  color: cyanPrimary,
+                ),
+              ),
+            ),
+          ),
 
           // Dark / Light Theme Toggle Button
           Tooltip(

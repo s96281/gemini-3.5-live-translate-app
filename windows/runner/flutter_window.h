@@ -33,6 +33,7 @@ class FlutterWindow : public Win32Window {
 
  private:
   void SetupSystemAudioChannels();
+  void SetupWindowChannels();
   void FlushAudioQueueToSink();
 
   // The project to run.
@@ -46,6 +47,10 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> event_sink_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> method_channel_;
   std::unique_ptr<flutter::EventChannel<flutter::EncodableValue>> event_channel_;
+
+  // Window control channel for Mini Floating Overlay mode
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> window_channel_;
+  RECT normal_rect_{};
 
   std::mutex audio_queue_mutex_;
   std::queue<std::vector<uint8_t>> audio_queue_;

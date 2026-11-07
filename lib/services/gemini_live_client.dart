@@ -29,6 +29,8 @@ class GeminiLiveClient {
       StreamController<Uint8List>.broadcast();
   final StreamController<String> _errorController =
       StreamController<String>.broadcast();
+  final StreamController<void> _turnCompleteController =
+      StreamController<void>.broadcast();
 
   LiveConnectionState _currentState = LiveConnectionState.disconnected;
 
@@ -40,6 +42,7 @@ class GeminiLiveClient {
   Stream<String> get targetTranscriptStream => _targetTranscriptController.stream;
   Stream<Uint8List> get audioOutputStream => _audioOutputController.stream;
   Stream<String> get errorStream => _errorController.stream;
+  Stream<void> get turnCompleteStream => _turnCompleteController.stream;
 
   void _setState(LiveConnectionState newState) {
     _currentState = newState;
@@ -247,6 +250,9 @@ class GeminiLiveClient {
             if (_currentState == LiveConnectionState.translating) {
               _setState(LiveConnectionState.connected);
             }
+            if (!_turnCompleteController.isClosed) {
+              _turnCompleteController.add(null);
+            }
           }
         }
       }
@@ -309,5 +315,6 @@ class GeminiLiveClient {
     _targetTranscriptController.close();
     _audioOutputController.close();
     _errorController.close();
+    _turnCompleteController.close();
   }
 }
