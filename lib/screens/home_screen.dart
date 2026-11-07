@@ -89,8 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
         audioSourceMode: sourceMode,
         selectedDeviceId: savedDeviceId,
       );
-      // 防迴授保護：若音訊來源為系統播放音效，預設靜音喇叭輸出避免迴授自激
-      _isMuted = (sourceMode == AudioSourceMode.systemAudio) ? true : !savedAutoPlay;
+      _isMuted = !savedAutoPlay;
       _playerService.isMuted = _isMuted;
     });
 
@@ -137,15 +136,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() {
       _config = _config.copyWith(audioSourceMode: newMode);
-      if (newMode == AudioSourceMode.systemAudio) {
-        // 系統音效模式下自動啟用防迴授靜音
-        _isMuted = true;
-        _playerService.isMuted = true;
-      }
     });
 
     _showToast(newMode == AudioSourceMode.systemAudio
-        ? '已切換至「裝置系統音效」來源 (已開啟字幕防迴授保護)'
+        ? '已切換至「裝置系統音效」來源'
         : '已切換至「實體麥克風」來源');
 
     // 若正在連線翻譯中，重啟以套用新音訊來源端點與 DSP 設定

@@ -8,9 +8,14 @@
 #include <flutter/standard_method_codec.h>
 
 #include <memory>
+#include <vector>
+#include <queue>
+#include <mutex>
 
 #include "win32_window.h"
 #include "wasapi_loopback_capture.h"
+
+#define WM_WASAPI_AUDIO_CHUNK (WM_USER + 1024)
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
@@ -28,6 +33,7 @@ class FlutterWindow : public Win32Window {
 
  private:
   void SetupSystemAudioChannels();
+  void FlushAudioQueueToSink();
 
   // The project to run.
   flutter::DartProject project_;
@@ -40,6 +46,9 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> event_sink_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> method_channel_;
   std::unique_ptr<flutter::EventChannel<flutter::EncodableValue>> event_channel_;
+
+  std::mutex audio_queue_mutex_;
+  std::queue<std::vector<uint8_t>> audio_queue_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

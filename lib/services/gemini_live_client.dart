@@ -118,8 +118,12 @@ class GeminiLiveClient {
                 'voiceName': config.voiceName,
               }
             }
-          }
+          },
+          'inputAudioTranscription': {},
+          'outputAudioTranscription': {},
         },
+        'inputAudioTranscription': {},
+        'outputAudioTranscription': {},
         'systemInstruction': {
           'parts': [
             {
@@ -173,10 +177,42 @@ class GeminiLiveClient {
         return;
       }
 
-      // 2. Process Server Content (Model turn parts)
+      // 2. Process Server Content
       if (data.containsKey('serverContent')) {
         final serverContent = data['serverContent'];
         if (serverContent is Map) {
+          // A. User speech input transcription (Source speech)
+          if (serverContent.containsKey('inputTranscription')) {
+            final trans = serverContent['inputTranscription'];
+            if (trans is Map && trans.containsKey('text')) {
+              final text = trans['text']?.toString() ?? '';
+              if (text.isNotEmpty) {
+                _sourceTranscriptController.add(text);
+              }
+            }
+          }
+          if (serverContent.containsKey('interimInputTranscription')) {
+            final trans = serverContent['interimInputTranscription'];
+            if (trans is Map && trans.containsKey('text')) {
+              final text = trans['text']?.toString() ?? '';
+              if (text.isNotEmpty) {
+                _sourceTranscriptController.add(text);
+              }
+            }
+          }
+
+          // B. Model output audio transcription (Translated speech)
+          if (serverContent.containsKey('outputTranscription')) {
+            final trans = serverContent['outputTranscription'];
+            if (trans is Map && trans.containsKey('text')) {
+              final text = trans['text']?.toString() ?? '';
+              if (text.isNotEmpty) {
+                _targetTranscriptController.add(text);
+              }
+            }
+          }
+
+          // C. Model turn parts (Translated audio + Subtitles)
           if (serverContent.containsKey('modelTurn')) {
             final modelTurn = serverContent['modelTurn'];
             if (modelTurn is Map && modelTurn.containsKey('parts')) {
@@ -217,7 +253,7 @@ class GeminiLiveClient {
         }
       }
 
-      // 3. Process Input Audio Transcription (Source speech)
+      // 3. Process Fallbacks (Top-level transcription fields)
       if (data.containsKey('inputAudioTranscription')) {
         final trans = data['inputAudioTranscription'];
         if (trans is Map && trans.containsKey('text')) {
@@ -227,10 +263,26 @@ class GeminiLiveClient {
           }
         }
       }
-
-      // 4. Process Output Audio Transcription (Translated speech)
       if (data.containsKey('outputAudioTranscription')) {
         final trans = data['outputAudioTranscription'];
+        if (trans is Map && trans.containsKey('text')) {
+          final text = trans['text']?.toString() ?? '';
+          if (text.isNotEmpty) {
+            _targetTranscriptController.add(text);
+          }
+        }
+      }
+      if (data.containsKey('inputTranscription')) {
+        final trans = data['inputTranscription'];
+        if (trans is Map && trans.containsKey('text')) {
+          final text = trans['text']?.toString() ?? '';
+          if (text.isNotEmpty) {
+            _sourceTranscriptController.add(text);
+          }
+        }
+      }
+      if (data.containsKey('outputTranscription')) {
+        final trans = data['outputTranscription'];
         if (trans is Map && trans.containsKey('text')) {
           final text = trans['text']?.toString() ?? '';
           if (text.isNotEmpty) {

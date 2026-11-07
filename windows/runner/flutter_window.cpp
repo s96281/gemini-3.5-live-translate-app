@@ -51,18 +51,26 @@ void FlutterWindow::SetupSystemAudioChannels() {
         } else if (call.method_name() == "startCapture") {
           bool started = wasapi_capture_->Start(
               [this](const std::vector<uint8_t>& data) {
-                if (event_sink_) {
-                  event_sink_->Success(flutter::EncodableValue(data));
+                // 背景執行緒收到音訊：放入隊列並通知 UI 執行緒派發
+                {
+                  std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+                  audio_queue_.push(data);
+                }
+                HWND hwnd = GetHandle();
+                if (hwnd) {
+                  PostMessage(hwnd, WM_WASAPI_AUDIO_CHUNK, 0, 0);
                 }
               },
               [this](const std::string& err) {
-                if (event_sink_) {
-                  event_sink_->Error("WASAPI_ERROR", err);
-                }
+                // 錯誤處理
               });
           result->Success(flutter::EncodableValue(started));
         } else if (call.method_name() == "stopCapture") {
           wasapi_capture_->Stop();
+          {
+            std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+            while (!audio_queue_.empty()) audio_queue_.pop();
+          }
           result->Success(flutter::EncodableValue(true));
         } else {
           result->NotImplemented();
@@ -89,10 +97,31 @@ void FlutterWindow::SetupSystemAudioChannels() {
   event_channel_->SetStreamHandler(std::move(handler));
 }
 
+void FlutterWindow::FlushAudioQueueToSink() {
+  std::vector<std::vector<uint8_t>> chunks;
+  {
+    std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+    while (!audio_queue_.empty()) {
+      chunks.push_back(std::move(audio_queue_.front()));
+      audio_queue_.pop();
+    }
+  }
+
+  if (event_sink_) {
+    for (const auto& chunk : chunks) {
+      event_sink_->Success(flutter::EncodableValue(chunk));
+    }
+  }
+}
+
 void FlutterWindow::OnDestroy() {
   if (wasapi_capture_) {
     wasapi_capture_->Stop();
     wasapi_capture_ = nullptr;
+  }
+  {
+    std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+    while (!audio_queue_.empty()) audio_queue_.pop();
   }
   event_sink_ = nullptr;
   method_channel_ = nullptr;
@@ -109,6 +138,11 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (message == WM_WASAPI_AUDIO_CHUNK) {
+    FlushAudioQueueToSink();
+    return 0;
+  }
+
   if (flutter_controller_) {
     std::optional<LRESULT> result =
         flutter_controller_->HandleTopLevelWindowProc(hwnd, message, wparam,

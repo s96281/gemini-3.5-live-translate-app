@@ -207,7 +207,30 @@ void WasapiLoopbackCapture::ResampleAndEmit(const uint8_t* pData, UINT32 numFram
         for (int ch = 0; ch < inChannels; ++ch) {
           sum += pShort[i * inChannels + ch];
         }
-        monoSourceSamples[i] = (sum / inChannels) / 32768.0f;
+        monoSourceSamples[i] = (static_cast<float>(sum) / inChannels) / 32768.0f;
+      }
+    } else if (bitsPerSample == 24) {
+      const uint8_t* pBytes = pData;
+      for (UINT32 i = 0; i < numFrames; ++i) {
+        float sum = 0.0f;
+        for (int ch = 0; ch < inChannels; ++ch) {
+          size_t offset = (i * inChannels + ch) * 3;
+          int32_t sample24 = (pBytes[offset]) | (pBytes[offset + 1] << 8) | (pBytes[offset + 2] << 16);
+          if (sample24 & 0x800000) {
+            sample24 |= 0xFF000000; // Sign extend
+          }
+          sum += static_cast<float>(sample24) / 8388608.0f;
+        }
+        monoSourceSamples[i] = sum / inChannels;
+      }
+    } else if (bitsPerSample == 32) {
+      const int32_t* pInt = reinterpret_cast<const int32_t*>(pData);
+      for (UINT32 i = 0; i < numFrames; ++i) {
+        double sum = 0.0;
+        for (int ch = 0; ch < inChannels; ++ch) {
+          sum += pInt[i * inChannels + ch];
+        }
+        monoSourceSamples[i] = static_cast<float>((sum / inChannels) / 2147483648.0);
       }
     }
   }

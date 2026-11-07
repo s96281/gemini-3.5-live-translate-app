@@ -119,6 +119,12 @@ void main() {
               }
             ]
           },
+          'inputTranscription': {
+            'text': 'Hello, nice to meet you.'
+          },
+          'outputTranscription': {
+            'text': '你好，很高興認識你。'
+          },
           'turnComplete': true
         },
         'inputAudioTranscription': {
@@ -132,6 +138,8 @@ void main() {
       final jsonStr = jsonEncode(mockServerMsg);
       final decoded = jsonDecode(jsonStr) as Map<String, dynamic>;
 
+      expect(decoded['serverContent']['inputTranscription']['text'], equals('Hello, nice to meet you.'));
+      expect(decoded['serverContent']['outputTranscription']['text'], equals('你好，很高興認識你。'));
       expect(decoded['inputAudioTranscription']['text'], equals('Hello, nice to meet you.'));
       expect(decoded['outputAudioTranscription']['text'], equals('你好，很高興認識你。'));
 
