@@ -397,6 +397,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_isMiniOverlayMode) {
       return MiniOverlayHud(
         currentTurn: _currentTurn,
+        history: _history,
+        config: _config,
+        connectionState: _connectionState,
         isRecording: isRecording,
         isMuted: _isMuted,
         onToggleRecording: _toggleTranslationSession,
@@ -407,6 +410,7 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         },
         onExitOverlay: _toggleMiniOverlayMode,
+        onSelectLanguage: _openLanguageSelector,
       );
     }
 
