@@ -40,13 +40,14 @@ void main() {
     test('Gemini Live setup payload schema adheres to specification', () {
       const config = LiveConfig(
         apiKey: 'fake_key',
+        modelName: 'models/gemini-2.0-flash-exp',
         targetLanguageCode: 'ja-JP',
         voiceName: 'Charon',
       );
 
       final setupPayload = {
         'setup': {
-          'model': 'models/gemini-3.5-live-translate-preview',
+          'model': config.modelName,
           'generationConfig': {
             'responseModalities': ['AUDIO'],
             'speechConfig': {
@@ -56,11 +57,13 @@ void main() {
                 }
               }
             },
-            'translationConfig': {
-              'targetLanguageCode': config.targetLanguageCode,
-            },
-            'inputAudioTranscription': {},
-            'outputAudioTranscription': {},
+          },
+          'systemInstruction': {
+            'parts': [
+              {
+                'text': 'Translate to ja-JP'
+              }
+            ]
           }
         }
       };
@@ -68,11 +71,9 @@ void main() {
       final jsonStr = jsonEncode(setupPayload);
       final decoded = jsonDecode(jsonStr) as Map<String, dynamic>;
 
-      expect(decoded['setup']['model'], equals('models/gemini-3.5-live-translate-preview'));
-      expect(decoded['setup']['generationConfig']['translationConfig']['targetLanguageCode'], equals('ja-JP'));
+      expect(decoded['setup']['model'], equals('models/gemini-2.0-flash-exp'));
       expect(decoded['setup']['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'], equals('Charon'));
-      expect(decoded['setup']['generationConfig']['inputAudioTranscription'], isNotNull);
-      expect(decoded['setup']['generationConfig']['outputAudioTranscription'], isNotNull);
+      expect(decoded['setup']['systemInstruction']['parts'][0]['text'], contains('ja-JP'));
     });
 
     test('Audio PCM chunk Base64 encoding format', () {

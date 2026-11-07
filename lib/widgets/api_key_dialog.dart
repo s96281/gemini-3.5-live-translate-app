@@ -36,6 +36,7 @@ class ApiKeyDialog extends StatefulWidget {
 
 class _ApiKeyDialogState extends State<ApiKeyDialog> {
   late TextEditingController _apiKeyController;
+  late String _selectedModel;
   late String _selectedVoice;
   late bool _autoPlayAudio;
   late AudioSourceMode _selectedSourceMode;
@@ -47,6 +48,7 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
   void initState() {
     super.initState();
     _apiKeyController = TextEditingController(text: widget.currentConfig.apiKey);
+    _selectedModel = widget.currentConfig.modelName;
     _selectedVoice = widget.currentConfig.voiceName;
     _autoPlayAudio = widget.currentConfig.autoPlayAudio;
     _selectedSourceMode = widget.currentConfig.audioSourceMode;
@@ -77,6 +79,7 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
     // Persist API Key & audio preferences to local secure preferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('gemini_api_key', newKey);
+    await prefs.setString('gemini_model_name', _selectedModel);
     await prefs.setString('gemini_voice', _selectedVoice);
     await prefs.setBool('gemini_autoplay', _autoPlayAudio);
     await prefs.setString('gemini_audio_source_mode', _selectedSourceMode.name);
@@ -88,6 +91,7 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
 
     final updated = widget.currentConfig.copyWith(
       apiKey: newKey,
+      modelName: _selectedModel,
       voiceName: _selectedVoice,
       autoPlayAudio: _autoPlayAudio,
       audioSourceMode: _selectedSourceMode,
@@ -364,6 +368,43 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                   ),
                 ),
               ],
+              // Gemini Live Model Selector
+              const Text(
+                'Gemini Live 模型 (Model)',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: LiveConfig.availableModels.contains(_selectedModel)
+                        ? _selectedModel
+                        : LiveConfig.availableModels.first,
+                    isExpanded: true,
+                    dropdownColor: const Color(0xFF182236),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                    items: LiveConfig.availableModels.map((model) {
+                      final displayName = model.replaceFirst('models/', '');
+                      return DropdownMenuItem<String>(
+                        value: model,
+                        child: Text(
+                          displayName,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setState(() => _selectedModel = val);
+                    },
+                  ),
+                ),
+              ),
               const SizedBox(height: 16),
 
               // Model Voice Selector

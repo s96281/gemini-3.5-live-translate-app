@@ -69,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     final savedKey = prefs.getString('gemini_api_key') ?? '';
+    final savedModel = prefs.getString('gemini_model_name') ?? 'models/gemini-2.0-flash-exp';
     final savedLang = prefs.getString('gemini_target_lang') ?? 'zh-TW';
     final savedVoice = prefs.getString('gemini_voice') ?? 'Puck';
     final savedAutoPlay = prefs.getBool('gemini_autoplay') ?? false;
@@ -81,6 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _config = LiveConfig(
         apiKey: savedKey,
+        modelName: savedModel,
         targetLanguageCode: savedLang,
         voiceName: savedVoice,
         autoPlayAudio: savedAutoPlay,
@@ -169,6 +171,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
       _stateSub = _liveClient!.stateStream.listen((st) {
         setState(() => _connectionState = st);
+        if (st == LiveConnectionState.error || st == LiveConnectionState.disconnected) {
+          if (_recorderService.isRecording) {
+            _recorderService.stopRecording();
+          }
+        }
       });
 
       _sourceSub = _liveClient!.sourceTranscriptStream.listen((text) {

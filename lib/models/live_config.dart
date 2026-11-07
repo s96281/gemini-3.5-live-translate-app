@@ -4,9 +4,10 @@ enum AudioSourceMode {
   microphone,
 }
 
-/// Configuration options for the Gemini 3.5 Live Translate session.
+/// Configuration options for the Gemini Live Translate session.
 class LiveConfig {
   final String apiKey;
+  final String modelName;
   final String targetLanguageCode;
   final String voiceName;
   final bool autoPlayAudio;
@@ -16,6 +17,7 @@ class LiveConfig {
 
   const LiveConfig({
     required this.apiKey,
+    this.modelName = 'models/gemini-2.0-flash-exp',
     this.targetLanguageCode = 'zh-TW',
     this.voiceName = 'Puck',
     this.autoPlayAudio = false,
@@ -26,6 +28,7 @@ class LiveConfig {
 
   LiveConfig copyWith({
     String? apiKey,
+    String? modelName,
     String? targetLanguageCode,
     String? voiceName,
     bool? autoPlayAudio,
@@ -35,6 +38,7 @@ class LiveConfig {
   }) {
     return LiveConfig(
       apiKey: apiKey ?? this.apiKey,
+      modelName: modelName ?? this.modelName,
       targetLanguageCode: targetLanguageCode ?? this.targetLanguageCode,
       voiceName: voiceName ?? this.voiceName,
       autoPlayAudio: autoPlayAudio ?? this.autoPlayAudio,
@@ -43,6 +47,13 @@ class LiveConfig {
       selectedDeviceId: selectedDeviceId ?? this.selectedDeviceId,
     );
   }
+
+  // Gemini Live supported models
+  static const List<String> availableModels = [
+    'models/gemini-2.0-flash-exp',
+    'models/gemini-2.0-flash-realtime-exp',
+    'models/gemini-3.5-live-translate-preview',
+  ];
 
   // Gemini Live supported voices
   static const List<String> availableVoices = [

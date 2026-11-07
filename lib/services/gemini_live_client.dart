@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../config/languages.dart';
 import '../models/live_config.dart';
 
 enum LiveConnectionState {
@@ -47,7 +48,7 @@ class GeminiLiveClient {
     }
   }
 
-  /// Connects to Gemini 3.5 Live Translate WebSocket endpoint
+  /// Connects to Gemini Live Multimodal WebSocket endpoint
   Future<void> connect() async {
     if (config.apiKey.trim().isEmpty) {
       _errorController.add('請先設定有效的 Google AI Studio API Key');
@@ -76,7 +77,15 @@ class GeminiLiveClient {
           _setState(LiveConnectionState.error);
         },
         onDone: () {
-          _setState(LiveConnectionState.disconnected);
+          final code = _webSocket?.closeCode;
+          final reason = _webSocket?.closeReason;
+          if (code != null && code != 1000) {
+            final reasonText = (reason != null && reason.isNotEmpty) ? reason : '未知原因';
+            _errorController.add('連線已中斷 (代碼 $code: $reasonText)');
+            _setState(LiveConnectionState.error);
+          } else {
+            _setState(LiveConnectionState.disconnected);
+          }
         },
         cancelOnError: true,
       );
@@ -89,13 +98,18 @@ class GeminiLiveClient {
     }
   }
 
-  /// Sends the initial configuration required by gemini-3.5-live-translate-preview
+  /// Sends the initial configuration required by Gemini Multimodal Live API
   void _sendSetupPayload() {
     if (_webSocket == null || _webSocket!.readyState != WebSocket.open) return;
 
+    final targetLang = SupportedLanguages.list.firstWhere(
+      (l) => l.code == config.targetLanguageCode,
+      orElse: () => SupportedLanguages.defaultLanguage,
+    );
+
     final setupPayload = {
       'setup': {
-        'model': 'models/gemini-3.5-live-translate-preview',
+        'model': config.modelName,
         'generationConfig': {
           'responseModalities': ['AUDIO'],
           'speechConfig': {
@@ -104,12 +118,15 @@ class GeminiLiveClient {
                 'voiceName': config.voiceName,
               }
             }
-          },
-          'translationConfig': {
-            'targetLanguageCode': config.targetLanguageCode,
-          },
-          'inputAudioTranscription': {},
-          'outputAudioTranscription': {},
+          }
+        },
+        'systemInstruction': {
+          'parts': [
+            {
+              'text':
+                  'You are a professional real-time speech-to-speech interpreter. Your sole objective is to simultaneously listen to incoming user speech or audio, and immediately translate it into ${targetLang.nameZh} (${config.targetLanguageCode}). Output the translated speech clearly and naturally in real-time. Do not chat or add explanations, only output the direct translation.'
+            }
+          ]
         }
       }
     };
@@ -150,39 +167,16 @@ class GeminiLiveClient {
         return;
       }
 
-      // Check for setup completion
+      // 1. Setup completion signal
       if (data.containsKey('setupComplete')) {
         _setState(LiveConnectionState.connected);
         return;
       }
 
-      // 1. Process Input Audio Transcription (Source speech)
-      if (data.containsKey('inputAudioTranscription')) {
-        final trans = data['inputAudioTranscription'];
-        if (trans is Map && trans.containsKey('text')) {
-          final text = trans['text']?.toString() ?? '';
-          if (text.isNotEmpty) {
-            _sourceTranscriptController.add(text);
-          }
-        }
-      }
-
-      // 2. Process Output Audio Transcription (Translated speech)
-      if (data.containsKey('outputAudioTranscription')) {
-        final trans = data['outputAudioTranscription'];
-        if (trans is Map && trans.containsKey('text')) {
-          final text = trans['text']?.toString() ?? '';
-          if (text.isNotEmpty) {
-            _targetTranscriptController.add(text);
-          }
-        }
-      }
-
-      // 3. Process Server Content (Audio parts & Turn Complete)
+      // 2. Process Server Content (Model turn parts)
       if (data.containsKey('serverContent')) {
         final serverContent = data['serverContent'];
         if (serverContent is Map) {
-          // Model turn parts
           if (serverContent.containsKey('modelTurn')) {
             final modelTurn = serverContent['modelTurn'];
             if (modelTurn is Map && modelTurn.containsKey('parts')) {
@@ -190,7 +184,7 @@ class GeminiLiveClient {
               if (parts != null) {
                 for (final part in parts) {
                   if (part is Map) {
-                    // Extract audio data (24kHz PCM)
+                    // Extract translated audio (24kHz PCM)
                     if (part.containsKey('inlineData')) {
                       final inline = part['inlineData'];
                       if (inline is Map && inline.containsKey('data')) {
@@ -201,7 +195,7 @@ class GeminiLiveClient {
                         }
                       }
                     }
-                    // Extract text parts if present
+                    // Extract text parts (Subtitles)
                     if (part.containsKey('text')) {
                       final text = part['text']?.toString() ?? '';
                       if (text.isNotEmpty) {
@@ -216,14 +210,35 @@ class GeminiLiveClient {
 
           // Check for turn completion
           if (serverContent['turnComplete'] == true) {
-            // Can transition or update turn status
+            if (_currentState == LiveConnectionState.translating) {
+              _setState(LiveConnectionState.connected);
+            }
           }
         }
       }
-    } catch (e) {
-      // In case of non-fatal parsing error, log without crashing
-      // print('Message parsing warning: $e');
-    }
+
+      // 3. Process Input Audio Transcription (Source speech)
+      if (data.containsKey('inputAudioTranscription')) {
+        final trans = data['inputAudioTranscription'];
+        if (trans is Map && trans.containsKey('text')) {
+          final text = trans['text']?.toString() ?? '';
+          if (text.isNotEmpty) {
+            _sourceTranscriptController.add(text);
+          }
+        }
+      }
+
+      // 4. Process Output Audio Transcription (Translated speech)
+      if (data.containsKey('outputAudioTranscription')) {
+        final trans = data['outputAudioTranscription'];
+        if (trans is Map && trans.containsKey('text')) {
+          final text = trans['text']?.toString() ?? '';
+          if (text.isNotEmpty) {
+            _targetTranscriptController.add(text);
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   /// Disconnects the WebSocket session gracefully

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -35,13 +36,13 @@ class MainActivity : FlutterActivity() {
                         return@setMethodCallHandler
                     }
 
-                    if (AudioCaptureService.mediaProjection != null) {
-                        startCaptureService()
-                        result.success(true)
-                    } else {
-                        pendingResult = result
+                    pendingResult = result
+                    try {
                         val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
                         startActivityForResult(mediaProjectionManager.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION)
+                    } catch (e: Exception) {
+                        result.error("FAILED", "無法啟動權限請求: ${e.message}", null)
+                        pendingResult = null
                     }
                 }
                 "stopCapture" -> {
@@ -84,23 +85,20 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_MEDIA_PROJECTION) {
             if (resultCode == Activity.RESULT_OK && data != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                AudioCaptureService.mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data)
-                startCaptureService()
-                pendingResult?.success(true)
+                try {
+                    val serviceIntent = Intent(this, AudioCaptureService::class.java).apply {
+                        putExtra(AudioCaptureService.EXTRA_RESULT_CODE, resultCode)
+                        putExtra(AudioCaptureService.EXTRA_DATA_INTENT, data)
+                    }
+                    ContextCompat.startForegroundService(this, serviceIntent)
+                    pendingResult?.success(true)
+                } catch (e: Exception) {
+                    pendingResult?.error("SERVICE_START_FAILED", "啟動音訊服務失敗: ${e.message}", null)
+                }
             } else {
-                pendingResult?.error("PERMISSION_DENIED", "使用者拒絕了系統音訊錄製權限", null)
+                pendingResult?.error("PERMISSION_DENIED", "使用者已取消系統音訊錄製權限", null)
             }
             pendingResult = null
-        }
-    }
-
-    private fun startCaptureService() {
-        val intent = Intent(this, AudioCaptureService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
         }
     }
 
