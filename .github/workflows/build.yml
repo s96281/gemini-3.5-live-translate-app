@@ -3,9 +3,15 @@ name: Build Cross-Platform Apps (Windows & Android)
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch: # 支援手動一鍵觸發打包
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag to upload assets to (e.g. v1.1.0)'
+        required: false
+        default: 'v1.1.0'
 
 jobs:
   # 1. 在 Windows 原生環境打包 Windows EXE
@@ -73,3 +79,45 @@ jobs:
         with:
           name: GeminiLiveTranslate-Android-Release-APK
           path: build/app/outputs/flutter-apk/app-release.apk
+
+  # 3. 自動附加編譯產物至 GitHub Release
+  upload-release-assets:
+    needs: [build-windows, build-android]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: GeminiLiveTranslate-Windows-x64
+          path: windows-artifact
+
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: GeminiLiveTranslate-Android-Release-APK
+          path: android-artifact
+
+      - name: Prepare Assets
+        id: prepare
+        run: |
+          TAG="${{ github.event.inputs.tag_name || github.ref_name }}"
+          if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
+            TAG="v1.1.0"
+          fi
+          echo "target_tag=$TAG" >> $GITHUB_OUTPUT
+          cp windows-artifact/GeminiLiveTranslate-Windows-x64.zip GeminiLiveTranslate-Windows-x64-${TAG}.zip
+          cp android-artifact/app-release.apk GeminiLiveTranslate-${TAG}.apk
+          ls -la GeminiLiveTranslate*
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.prepare.outputs.target_tag }}
+          files: |
+            GeminiLiveTranslate-Windows-x64-${{ steps.prepare.outputs.target_tag }}.zip
+            GeminiLiveTranslate-${{ steps.prepare.outputs.target_tag }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
