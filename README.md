@@ -11,8 +11,11 @@
 1. **Google AI Studio 直連**：
    - 採用 WebSocket 雙向即時串流協議 (`BidiGenerateContent`)，直連官方 `models/gemini-3.5-live-translate-preview`。
    - 使用者只需填寫個人 Google AI Studio API Key，所有通訊端到端加密傳輸，不經過任何第三方代理伺服器。
-2. **硬體級低延遲音訊串流**：
-   - 裝置麥克風以 **16kHz 16-bit Mono Linear PCM** 格式擷取，切分為 100ms（3200 bytes）封包即時串流至雲端模型。
+2. **硬體級低延遲音訊串流（支援裝置系統音效與麥克風）**：
+   - **裝置系統播放音效 (System Audio / Loopback)**：即時擷取裝置本機播放之影片、直播、線上會議或遊戲音效，自動關閉回音消除 (AEC) 與抑噪濾波，保留原始細膩聲音細節。
+   - **實體麥克風模式 (Microphone)**：現場說話口譯，啟用硬體回音消除與抑噪處理。
+   - 音訊一律以 **16kHz 16-bit Mono Linear PCM** 格式擷取，切分為 100ms（3200 bytes）封包即時串流至 Gemini 模型。
+   - **防迴授保護機制 (Acoustic Feedback Protection)**：切換為系統音效時自動預設靜音 AI 語音喇叭播放（純即時雙語字幕），避免喇叭播出的譯文被二次錄入引發自激回音。
    - 同步接收模型回傳之 **24kHz PCM 翻譯語音** 與雙向即時字幕。
 3. **雙語即時流式字幕**：
    - 即時顯示發話端原始語音聽打 (`inputAudioTranscription`) 與譯文 (`outputAudioTranscription`)。
@@ -20,7 +23,7 @@
 4. **現代科技風介面 (Cyberpunk / Modern Glassmorphism)**：
    - 深邃黑底搭配霓虹青（Cyan）與電光紫（Purple）光暈。
    - 基於 GPU Canvas 加速繪製的即時音波動態視覺化波形（`AudioWaveVisualizer`）。
-   - 懸浮式毛玻璃膠囊控制列，操作順手流暢。
+   - 懸浮式毛玻璃膠囊控制列，支援**一鍵快速切換「🔊 系統音效」與「🎤 麥克風」**。
 5. **支援 70+ 種語言與多款 AI 語音音色**：
    - 預設目標語言：**繁體中文 (zh-TW)**，可即時切換英語、日語、韓語、德語、法語、西班牙語等 70+ 種語言。
    - 支援 5 種 Gemini Live 預設音色：`Puck` (自然平衡)、`Charon` (沉穩渾厚)、`Kore` (溫柔親切)、`Fenrir` (清晰活力)、`Aoede` (輕柔優雅)。

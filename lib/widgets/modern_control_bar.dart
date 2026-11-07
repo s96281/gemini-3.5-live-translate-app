@@ -1,15 +1,19 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
+import '../models/live_config.dart';
+
 /// A floating frosted-glass control pill for instant recording, language switching,
-/// TTS toggling, and settings.
+/// audio source toggling (system audio vs mic), TTS toggling, and settings.
 class ModernControlBar extends StatelessWidget {
   final bool isRecording;
   final bool isMuted;
   final String targetLanguageDisplay;
+  final AudioSourceMode audioSourceMode;
   final VoidCallback onToggleRecording;
   final VoidCallback onToggleMute;
   final VoidCallback onSelectLanguage;
+  final VoidCallback onToggleAudioSource;
   final VoidCallback onClearHistory;
   final VoidCallback onOpenSettings;
 
@@ -18,9 +22,11 @@ class ModernControlBar extends StatelessWidget {
     required this.isRecording,
     required this.isMuted,
     required this.targetLanguageDisplay,
+    required this.audioSourceMode,
     required this.onToggleRecording,
     required this.onToggleMute,
     required this.onSelectLanguage,
+    required this.onToggleAudioSource,
     required this.onClearHistory,
     required this.onOpenSettings,
   });
@@ -87,7 +93,58 @@ class ModernControlBar extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
+
+              // Audio Source Switch Pill (System Audio vs Microphone)
+              Tooltip(
+                message: audioSourceMode == AudioSourceMode.systemAudio
+                    ? '音訊來源：裝置系統音效 (點擊切換為麥克風)'
+                    : '音訊來源：實體麥克風 (點擊切換為系統音效)',
+                child: InkWell(
+                  onTap: onToggleAudioSource,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: audioSourceMode == AudioSourceMode.systemAudio
+                          ? const Color(0xFF00E5FF).withOpacity(0.15)
+                          : const Color(0xFF7928CA).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: audioSourceMode == AudioSourceMode.systemAudio
+                            ? const Color(0xFF00E5FF).withOpacity(0.5)
+                            : const Color(0xFF7928CA).withOpacity(0.5),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          audioSourceMode == AudioSourceMode.systemAudio
+                              ? Icons.speaker_rounded
+                              : Icons.mic_rounded,
+                          size: 15,
+                          color: audioSourceMode == AudioSourceMode.systemAudio
+                              ? const Color(0xFF00E5FF)
+                              : const Color(0xFFD946EF),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          audioSourceMode == AudioSourceMode.systemAudio ? '系統音效' : '麥克風',
+                          style: TextStyle(
+                            color: audioSourceMode == AudioSourceMode.systemAudio
+                                ? const Color(0xFF00E5FF)
+                                : const Color(0xFFE2B8FF),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
 
               // Clear history button
               IconButton(
@@ -102,6 +159,7 @@ class ModernControlBar extends StatelessWidget {
               // Main Recording Floating Button
               _RecordButton(
                 isRecording: isRecording,
+                audioSourceMode: audioSourceMode,
                 onTap: onToggleRecording,
               ),
 
@@ -137,10 +195,12 @@ class ModernControlBar extends StatelessWidget {
 
 class _RecordButton extends StatefulWidget {
   final bool isRecording;
+  final AudioSourceMode audioSourceMode;
   final VoidCallback onTap;
 
   const _RecordButton({
     required this.isRecording,
+    required this.audioSourceMode,
     required this.onTap,
   });
 
@@ -205,15 +265,21 @@ class _RecordButtonState extends State<_RecordButton>
                     gradient: LinearGradient(
                       colors: widget.isRecording
                           ? [const Color(0xFFFF416C), const Color(0xFFFF4B2B)]
-                          : [const Color(0xFF00E5FF), const Color(0xFF0072FF)],
+                          : (widget.audioSourceMode == AudioSourceMode.systemAudio
+                              ? [const Color(0xFF00E5FF), const Color(0xFF0072FF)]
+                              : [const Color(0xFF9D4EDD), const Color(0xFF7209B7)]),
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                   ),
                   child: Icon(
-                    widget.isRecording ? Icons.stop_rounded : Icons.mic_rounded,
+                    widget.isRecording
+                        ? Icons.stop_rounded
+                        : (widget.audioSourceMode == AudioSourceMode.systemAudio
+                            ? Icons.speaker_rounded
+                            : Icons.mic_rounded),
                     color: Colors.white,
-                    size: 28,
+                    size: 26,
                   ),
                 ),
               ),

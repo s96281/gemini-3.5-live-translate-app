@@ -18,6 +18,23 @@ void main() {
       expect(client.config.apiKey, equals('test_api_key_123'));
       expect(client.config.targetLanguageCode, equals('zh-TW'));
       expect(client.config.voiceName, equals('Puck'));
+      expect(client.config.audioSourceMode, equals(AudioSourceMode.systemAudio));
+    });
+
+    test('LiveConfig supports audioSourceMode and copyWith', () {
+      const config = LiveConfig(
+        apiKey: 'key',
+        audioSourceMode: AudioSourceMode.systemAudio,
+        selectedDeviceId: null,
+      );
+      expect(config.audioSourceMode, equals(AudioSourceMode.systemAudio));
+
+      final updated = config.copyWith(
+        audioSourceMode: AudioSourceMode.microphone,
+        selectedDeviceId: 'stereo_mix_01',
+      );
+      expect(updated.audioSourceMode, equals(AudioSourceMode.microphone));
+      expect(updated.selectedDeviceId, equals('stereo_mix_01'));
     });
 
     test('Gemini Live setup payload schema adheres to specification', () {

@@ -3,9 +3,10 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:record/record.dart';
+import '../models/live_config.dart';
 
 /// Service responsible for recording raw 16kHz 16-bit linear PCM audio from the device
-/// microphone and emitting 100ms chunks (3200 bytes) along with normalized amplitude.
+/// (system playback audio or microphone) and emitting 100ms chunks (3200 bytes) along with normalized amplitude.
 class AudioRecorderService {
   final AudioRecorder _audioRecorder = AudioRecorder();
   StreamSubscription<Uint8List>? _recordStreamSub;
@@ -20,36 +21,84 @@ class AudioRecorderService {
   final List<int> _buffer = [];
 
   bool _isRecording = false;
+  AudioSourceMode _currentMode = AudioSourceMode.systemAudio;
 
   bool get isRecording => _isRecording;
+  AudioSourceMode get currentMode => _currentMode;
   Stream<Uint8List> get audioChunkStream => _chunkController.stream;
   Stream<double> get amplitudeStream => _amplitudeController.stream;
 
-  /// Check and request microphone permission
+  /// Check and request audio recording permission
   Future<bool> hasPermission() async {
     return await _audioRecorder.hasPermission();
   }
 
+  /// List available audio input devices (e.g. Microphones, Stereo Mix, Virtual Audio Cables)
+  Future<List<InputDevice>> getAvailableInputDevices() async {
+    try {
+      return await _audioRecorder.listInputDevices();
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Start streaming raw 16kHz PCM audio
-  Future<void> startRecording() async {
+  /// [sourceMode]: [AudioSourceMode.systemAudio] or [AudioSourceMode.microphone]
+  /// [deviceId]: Optional specific input device ID (e.g. Stereo Mix / VB-CABLE / Specific Mic)
+  Future<void> startRecording({
+    AudioSourceMode sourceMode = AudioSourceMode.systemAudio,
+    String? deviceId,
+  }) async {
     if (_isRecording) return;
 
     final hasPerm = await hasPermission();
     if (!hasPerm) {
-      throw Exception('未獲得麥克風權限，請於系統設定中授權。');
+      throw Exception('未獲得音訊錄製權限，請於系統設定中授權。');
     }
 
+    _currentMode = sourceMode;
     _buffer.clear();
 
-    // Configure 16kHz, 16-bit, Mono Linear PCM stream
+    InputDevice? selectedDevice;
+    final devices = await getAvailableInputDevices();
+
+    if (deviceId != null && deviceId.isNotEmpty) {
+      selectedDevice = devices.cast<InputDevice?>().firstWhere(
+            (d) => d?.id == deviceId,
+            orElse: () => null,
+          );
+    } else if (sourceMode == AudioSourceMode.systemAudio) {
+      // 智慧比對系統播放音效裝置（立體聲混音 / Stereo Mix / Loopback / Virtual Cable）
+      selectedDevice = devices.cast<InputDevice?>().firstWhere(
+            (d) {
+              if (d == null) return false;
+              final name = d.name.toLowerCase();
+              return name.contains('stereo mix') ||
+                  name.contains('立體聲混音') ||
+                  name.contains('what u hear') ||
+                  name.contains('loopback') ||
+                  name.contains('cable') ||
+                  name.contains('virtual') ||
+                  name.contains('system');
+            },
+            orElse: () => null,
+          );
+    }
+
+    // 依據音訊來源調整 DSP 濾波：
+    // 錄製系統音效時必須關閉 echoCancel 與 noiseSuppress，避免作業系統誤將播放音效濾除
+    final bool isSystemAudio = (sourceMode == AudioSourceMode.systemAudio);
+
     final recordStream = await _audioRecorder.startStream(
-      const RecordConfig(
+      RecordConfig(
         encoder: AudioEncoder.pcm16bits,
         sampleRate: 16000,
         numChannels: 1,
         bitRate: 256000,
-        noiseSuppress: true,
-        echoCancel: true,
+        device: selectedDevice,
+        noiseSuppress: isSystemAudio ? false : true,
+        echoCancel: isSystemAudio ? false : true,
+        autoGain: isSystemAudio ? false : true,
       ),
     );
 

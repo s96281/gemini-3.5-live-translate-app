@@ -72,6 +72,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final savedLang = prefs.getString('gemini_target_lang') ?? 'zh-TW';
     final savedVoice = prefs.getString('gemini_voice') ?? 'Puck';
     final savedAutoPlay = prefs.getBool('gemini_autoplay') ?? false;
+    final savedSourceStr = prefs.getString('gemini_audio_source_mode') ?? 'systemAudio';
+    final savedDeviceId = prefs.getString('gemini_selected_device_id');
+    final sourceMode = (savedSourceStr == 'microphone')
+        ? AudioSourceMode.microphone
+        : AudioSourceMode.systemAudio;
 
     setState(() {
       _config = LiveConfig(
@@ -79,8 +84,11 @@ class _HomeScreenState extends State<HomeScreen> {
         targetLanguageCode: savedLang,
         voiceName: savedVoice,
         autoPlayAudio: savedAutoPlay,
+        audioSourceMode: sourceMode,
+        selectedDeviceId: savedDeviceId,
       );
-      _isMuted = !savedAutoPlay;
+      // 防迴授保護：若音訊來源為系統播放音效，預設靜音喇叭輸出避免迴授自激
+      _isMuted = (sourceMode == AudioSourceMode.systemAudio) ? true : !savedAutoPlay;
       _playerService.isMuted = _isMuted;
     });
 
@@ -113,6 +121,34 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_recorderService.isRecording) {
       await _stopSession();
     } else {
+      await _startSession();
+    }
+  }
+
+  Future<void> _toggleAudioSourceMode() async {
+    final newMode = _config.audioSourceMode == AudioSourceMode.systemAudio
+        ? AudioSourceMode.microphone
+        : AudioSourceMode.systemAudio;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('gemini_audio_source_mode', newMode.name);
+
+    setState(() {
+      _config = _config.copyWith(audioSourceMode: newMode);
+      if (newMode == AudioSourceMode.systemAudio) {
+        // 系統音效模式下自動啟用防迴授靜音
+        _isMuted = true;
+        _playerService.isMuted = true;
+      }
+    });
+
+    _showToast(newMode == AudioSourceMode.systemAudio
+        ? '已切換至「裝置系統音效」來源 (已開啟字幕防迴授保護)'
+        : '已切換至「實體麥克風」來源');
+
+    // 若正在連線翻譯中，重啟以套用新音訊來源端點與 DSP 設定
+    if (_recorderService.isRecording) {
+      await _stopSession();
       await _startSession();
     }
   }
@@ -156,8 +192,11 @@ class _HomeScreenState extends State<HomeScreen> {
       // 2. Connect WebSocket
       await _liveClient!.connect();
 
-      // 3. Start Native Microphone Recording (16kHz PCM)
-      await _recorderService.startRecording();
+      // 3. Start Native Recording (System Audio or Mic at 16kHz PCM)
+      await _recorderService.startRecording(
+        sourceMode: _config.audioSourceMode,
+        deviceId: _config.selectedDeviceId,
+      );
 
       setState(() {
         _currentTurn = TranslationTurn(
@@ -372,7 +411,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   isRecording: isRecording,
                   isMuted: _isMuted,
                   targetLanguageDisplay: '${targetLang.flag} ${targetLang.nameZh}',
+                  audioSourceMode: _config.audioSourceMode,
                   onToggleRecording: _toggleTranslationSession,
+                  onToggleAudioSource: _toggleAudioSourceMode,
                   onToggleMute: () {
                     setState(() {
                       _isMuted = !_isMuted;
@@ -392,6 +433,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeader(LanguageInfo targetLang) {
+    final isSystemAudio = (_config.audioSourceMode == AudioSourceMode.systemAudio);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       child: Row(
@@ -431,6 +474,46 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const Spacer(),
+
+          // Audio Source Badge
+          InkWell(
+            onTap: _toggleAudioSourceMode,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: isSystemAudio
+                    ? const Color(0xFF00E5FF).withOpacity(0.12)
+                    : const Color(0xFF7928CA).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSystemAudio
+                      ? const Color(0xFF00E5FF).withOpacity(0.4)
+                      : const Color(0xFF7928CA).withOpacity(0.4),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isSystemAudio ? Icons.speaker_rounded : Icons.mic_rounded,
+                    size: 13,
+                    color: isSystemAudio ? const Color(0xFF00E5FF) : const Color(0xFFD946EF),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    isSystemAudio ? '系統音效' : '麥克風',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isSystemAudio ? const Color(0xFF00E5FF) : const Color(0xFFE2B8FF),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
           // Connection State Pill
           _buildConnectionPill(),
@@ -507,30 +590,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildEmptyState() {
+    final isSystemAudio = (_config.audioSourceMode == AudioSourceMode.systemAudio);
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.graphic_eq_rounded,
+            isSystemAudio ? Icons.speaker_rounded : Icons.graphic_eq_rounded,
             size: 64,
-            color: Colors.white.withOpacity(0.12),
+            color: Colors.white.withOpacity(0.14),
           ),
           const SizedBox(height: 16),
           Text(
-            '點擊下方麥克風按鈕開始即時口譯',
+            isSystemAudio ? '播放電腦/手機音效，並點擊下方按鈕開始即時口譯' : '對著麥克風說話，並點擊下方按鈕開始即時口譯',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: Colors.white.withOpacity(0.6),
+              color: Colors.white.withOpacity(0.7),
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            '裝置將以 16kHz PCM 即時串流至 Gemini 3.5 Live Translate',
+            isSystemAudio
+                ? '已設定為裝置音效模式（影片/會議/遊戲），自動關閉抑噪以保留原始聲音細節'
+                : '裝置將以 16kHz PCM 麥克風音訊即時串流至 Gemini 3.5 Live',
             style: TextStyle(
               fontSize: 12,
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withOpacity(0.35),
             ),
           ),
         ],
