@@ -72,14 +72,14 @@ class AudioRecorderService {
       selectedDevice = devices.cast<InputDevice?>().firstWhere(
             (d) {
               if (d == null) return false;
-              final name = d.name.toLowerCase();
-              return name.contains('stereo mix') ||
-                  name.contains('立體聲混音') ||
-                  name.contains('what u hear') ||
-                  name.contains('loopback') ||
-                  name.contains('cable') ||
-                  name.contains('virtual') ||
-                  name.contains('system');
+              final label = d.label.toLowerCase();
+              return label.contains('stereo mix') ||
+                  label.contains('立體聲混音') ||
+                  label.contains('what u hear') ||
+                  label.contains('loopback') ||
+                  label.contains('cable') ||
+                  label.contains('virtual') ||
+                  label.contains('system');
             },
             orElse: () => null,
           );

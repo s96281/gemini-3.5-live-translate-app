@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/live_config.dart';
+import '../services/audio_recorder_service.dart';
 
 /// Modal dialog for configuring Google AI Studio API Key and Gemini Live settings.
 class ApiKeyDialog extends StatefulWidget {
@@ -344,10 +345,13 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                           ),
                         ),
                         ..._availableDevices.map((dev) {
+                          final label = (dev.label as String?)?.isNotEmpty == true
+                              ? dev.label as String
+                              : (dev.id as String);
                           return DropdownMenuItem<String?>(
                             value: dev.id as String,
                             child: Text(
-                              '${dev.name}',
+                              label,
                               overflow: TextOverflow.ellipsis,
                             ),
                           );
