@@ -24,18 +24,17 @@ jobs:
 
       - name: Install Dependencies
         run: flutter pub get
-        working-directory: gemini_live_translate
 
       - name: Enable Windows Desktop
         run: flutter config --enable-windows-desktop
 
       - name: Build Windows Release
         run: flutter build windows --release
-        working-directory: gemini_live_translate
 
       - name: Archive Windows Release
+        shell: pwsh
         run: |
-          Compress-Archive -Path gemini_live_translate/build/windows/x64/runner/Release/* -DestinationPath GeminiLiveTranslate-Windows-x64.zip
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath GeminiLiveTranslate-Windows-x64.zip
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
@@ -65,14 +64,12 @@ jobs:
 
       - name: Install Dependencies
         run: flutter pub get
-        working-directory: gemini_live_translate
 
       - name: Build Android Release APK
         run: flutter build apk --release
-        working-directory: gemini_live_translate
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
         with:
           name: GeminiLiveTranslate-Android-Release-APK
-          path: gemini_live_translate/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
