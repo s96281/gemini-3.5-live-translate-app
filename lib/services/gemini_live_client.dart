@@ -118,9 +118,7 @@ class GeminiLiveClient {
                 'voiceName': config.voiceName,
               }
             }
-          },
-          'inputAudioTranscription': {},
-          'outputAudioTranscription': {},
+          }
         },
         'inputAudioTranscription': {},
         'outputAudioTranscription': {},
