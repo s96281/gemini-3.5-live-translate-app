@@ -6,6 +6,7 @@ import '../config/languages.dart';
 import '../models/translation_turn.dart';
 
 /// A modern, glassmorphic card presenting real-time source speech and live translation.
+/// Dynamically themes between Dark and Light appearances.
 class SubtitleCard extends StatelessWidget {
   final TranslationTurn turn;
   final bool isLive;
@@ -18,33 +19,56 @@ class SubtitleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final targetLang = SupportedLanguages.findByCode(turn.targetLanguageCode);
 
+    // Theme-sensitive styles
+    final cardBg = isDark
+        ? const Color(0xFF131B2B).withOpacity(isLive ? 0.85 : 0.6)
+        : Colors.white.withOpacity(isLive ? 0.95 : 0.85);
+
+    final cyanColor = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0284C7);
+    final borderColor = isLive
+        ? cyanColor.withOpacity(0.5)
+        : (isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE2E8F0));
+
+    final shadowColor = isLive
+        ? cyanColor.withOpacity(isDark ? 0.15 : 0.12)
+        : (isDark ? Colors.black.withOpacity(0.2) : const Color(0x100F172A));
+
+    final sourceTextColor = isDark
+        ? Colors.white.withOpacity(turn.sourceText.isEmpty ? 0.4 : 0.75)
+        : (turn.sourceText.isEmpty ? const Color(0xFF94A3B8) : const Color(0xFF475569));
+
+    final targetTextColor = turn.targetText.isNotEmpty
+        ? (isDark ? Colors.white : const Color(0xFF0F172A))
+        : (isDark ? Colors.white38 : const Color(0xFF94A3B8));
+
+    final badgeBg = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
+    final badgeText = isDark ? Colors.white70 : const Color(0xFF475569);
+    final dividerColor = isDark ? Colors.white10 : const Color(0xFFF1F5F9);
+
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF131B2B).withOpacity(isLive ? 0.75 : 0.5),
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isLive ? const Color(0xFF00E5FF).withOpacity(0.4) : Colors.white.withOpacity(0.08),
-          width: isLive ? 1.5 : 1.0,
-        ),
-        boxShadow: isLive
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF00E5FF).withOpacity(0.12),
-                  blurRadius: 16,
-                  spreadRadius: 2,
-                )
-              ]
-            : [],
+        border: Border.all(color: borderColor, width: isLive ? 1.5 : 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: isLive ? 16 : 8,
+            offset: const Offset(0, 3),
+            spreadRadius: isLive ? 1 : 0,
+          )
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -54,39 +78,45 @@ class SubtitleCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
+                        color: badgeBg,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.mic, size: 13, color: Colors.white70),
+                          Icon(Icons.mic, size: 13, color: badgeText),
                           const SizedBox(width: 4),
                           Text(
                             '原始語音',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white.withOpacity(0.7),
+                              color: badgeText,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.arrow_forward_rounded, size: 14, color: Colors.white38),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 13,
+                      color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                    ),
+                    const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00E5FF).withOpacity(0.15),
+                        color: isDark
+                            ? const Color(0xFF00E5FF).withOpacity(0.15)
+                            : const Color(0xFFE0F2FE),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         '${targetLang.flag} ${targetLang.nameZh}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF00E5FF),
+                          color: cyanColor,
                         ),
                       ),
                     ),
@@ -95,7 +125,7 @@ class SubtitleCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.redAccent.withOpacity(0.2),
+                          color: Colors.redAccent.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
                         ),
@@ -126,7 +156,7 @@ class SubtitleCard extends StatelessWidget {
                         _formatTime(turn.timestamp),
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.white.withOpacity(0.4),
+                          color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
                         ),
                       ),
                     const SizedBox(width: 8),
@@ -147,12 +177,12 @@ class SubtitleCard extends StatelessWidget {
                       child: Icon(
                         Icons.copy_rounded,
                         size: 15,
-                        color: Colors.white.withOpacity(0.5),
+                        color: isDark ? Colors.white.withOpacity(0.5) : const Color(0xFF94A3B8),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
 
                 // Source speech text
                 Text(
@@ -162,11 +192,11 @@ class SubtitleCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontStyle: turn.sourceText.isEmpty ? FontStyle.italic : FontStyle.normal,
-                    color: Colors.white.withOpacity(turn.sourceText.isEmpty ? 0.4 : 0.75),
+                    color: sourceTextColor,
                     height: 1.4,
                   ),
                 ),
-                const Divider(height: 20, color: Colors.white10),
+                Divider(height: 18, color: dividerColor),
 
                 // Translated speech text
                 Text(
@@ -176,9 +206,9 @@ class SubtitleCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: turn.targetText.isNotEmpty ? Colors.white : Colors.white38,
+                    color: targetTextColor,
                     height: 1.45,
-                    shadows: isLive && turn.targetText.isNotEmpty
+                    shadows: isLive && turn.targetText.isNotEmpty && isDark
                         ? [
                             Shadow(
                               color: const Color(0xFF00E5FF).withOpacity(0.3),

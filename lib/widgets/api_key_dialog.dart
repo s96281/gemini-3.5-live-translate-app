@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/theme.dart';
 import '../models/live_config.dart';
 import '../services/audio_recorder_service.dart';
 
 /// Modal dialog for configuring Google AI Studio API Key and Gemini Live settings.
+/// Fully themed for both Dark and Light modes.
 class ApiKeyDialog extends StatefulWidget {
   final LiveConfig currentConfig;
   final ValueChanged<LiveConfig> onSave;
@@ -103,8 +105,8 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('API Key 與音訊設定已成功儲存'),
-          backgroundColor: Color(0xFF00E5FF),
+          content: Text('設定已成功儲存'),
+          duration: Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -113,19 +115,30 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cyanPrimary = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0284C7);
+    final dialogBg = isDark ? const Color(0xFF101626) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textSubColor = isDark ? Colors.white70 : const Color(0xFF475569);
+    final textMutedColor = isDark ? Colors.white.withOpacity(0.4) : const Color(0xFF94A3B8);
+    final borderColor = isDark ? Colors.white.withOpacity(0.12) : const Color(0xFFE2E8F0);
+    final inputBg = isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFF1F5F9);
+    final cardBg = isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF8FAFC);
+    final dropdownBg = isDark ? const Color(0xFF182236) : Colors.white;
+
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 480),
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: const Color(0xFF101626),
+          color: dialogBg,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withOpacity(0.12)),
+          border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.6),
+              color: isDark ? Colors.black.withOpacity(0.6) : const Color(0x200F172A),
               blurRadius: 30,
               offset: const Offset(0, 10),
             )
@@ -142,44 +155,149 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00E5FF).withOpacity(0.15),
+                      color: cyanPrimary.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.settings_suggest_rounded, color: Color(0xFF00E5FF), size: 22),
+                    child: Icon(Icons.settings_suggest_rounded, color: cyanPrimary, size: 22),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
+                  Text(
                     '應用程式設定',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: textColor,
                     ),
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                    icon: Icon(Icons.close, color: textSubColor, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
+
+              // Theme Style (Dark / Light)
+              Text(
+                '外觀主題風格 (Theme Style)',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSubColor),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () async {
+                        await AppThemes.setThemeMode(ThemeMode.dark);
+                        setState(() {});
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: (themeModeNotifier.value == ThemeMode.dark)
+                              ? cyanPrimary.withOpacity(0.18)
+                              : cardBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: (themeModeNotifier.value == ThemeMode.dark)
+                                ? cyanPrimary
+                                : borderColor,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.dark_mode_rounded,
+                              size: 16,
+                              color: (themeModeNotifier.value == ThemeMode.dark)
+                                  ? cyanPrimary
+                                  : textSubColor,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '深色模式',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: (themeModeNotifier.value == ThemeMode.dark)
+                                    ? cyanPrimary
+                                    : textSubColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () async {
+                        await AppThemes.setThemeMode(ThemeMode.light);
+                        setState(() {});
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: (themeModeNotifier.value == ThemeMode.light)
+                              ? cyanPrimary.withOpacity(0.18)
+                              : cardBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: (themeModeNotifier.value == ThemeMode.light)
+                                ? cyanPrimary
+                                : borderColor,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.light_mode_rounded,
+                              size: 16,
+                              color: (themeModeNotifier.value == ThemeMode.light)
+                                  ? cyanPrimary
+                                  : textSubColor,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '明亮模式',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: (themeModeNotifier.value == ThemeMode.light)
+                                    ? cyanPrimary
+                                    : textSubColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
 
               // API Key Input
-              const Text(
+              Text(
                 'Gemini API Key',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white70),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSubColor),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: _apiKeyController,
                 obscureText: _obscureKey,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: textColor, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: '請貼上您的 AI Studio API Key (AIzaSy...)',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 13),
+                  hintStyle: TextStyle(color: textMutedColor, fontSize: 13),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.06),
+                  fillColor: inputBg,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -187,7 +305,7 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscureKey ? Icons.visibility_off : Icons.visibility,
-                      color: Colors.white60,
+                      color: textSubColor,
                       size: 18,
                     ),
                     onPressed: () => setState(() => _obscureKey = !_obscureKey),
@@ -198,14 +316,14 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
               const SizedBox(height: 6),
               Text(
                 '※ Key 僅儲存於本機安全儲存區，直接連線至 Google 官方 Gemini Live 伺服器。',
-                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+                style: TextStyle(color: textMutedColor, fontSize: 11),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
 
               // Audio Input Source Selection
-              const Text(
+              Text(
                 '音訊擷取來源 (Audio Source)',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white70),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSubColor),
               ),
               const SizedBox(height: 8),
               Row(
@@ -215,7 +333,6 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                       onTap: () {
                         setState(() {
                           _selectedSourceMode = AudioSourceMode.systemAudio;
-                          // 防迴授保護：若選系統音效，預設建議關閉自動語音播放避免回音自激
                           _autoPlayAudio = false;
                         });
                       },
@@ -224,13 +341,13 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
                         decoration: BoxDecoration(
                           color: _selectedSourceMode == AudioSourceMode.systemAudio
-                              ? const Color(0xFF00E5FF).withOpacity(0.18)
-                              : Colors.white.withOpacity(0.05),
+                              ? cyanPrimary.withOpacity(0.18)
+                              : cardBg,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _selectedSourceMode == AudioSourceMode.systemAudio
-                                ? const Color(0xFF00E5FF)
-                                : Colors.white12,
+                                ? cyanPrimary
+                                : borderColor,
                           ),
                         ),
                         child: Row(
@@ -240,18 +357,18 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                               Icons.speaker_rounded,
                               size: 18,
                               color: _selectedSourceMode == AudioSourceMode.systemAudio
-                                  ? const Color(0xFF00E5FF)
-                                  : Colors.white60,
+                                  ? cyanPrimary
+                                  : textSubColor,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               '裝置系統音效',
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w600,
                                 color: _selectedSourceMode == AudioSourceMode.systemAudio
-                                    ? Colors.white
-                                    : Colors.white70,
+                                    ? cyanPrimary
+                                    : textSubColor,
                               ),
                             ),
                           ],
@@ -272,13 +389,13 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
                         decoration: BoxDecoration(
                           color: _selectedSourceMode == AudioSourceMode.microphone
-                              ? const Color(0xFF7928CA).withOpacity(0.25)
-                              : Colors.white.withOpacity(0.05),
+                              ? (isDark ? const Color(0xFF7928CA).withOpacity(0.2) : const Color(0xFFF3E8FF))
+                              : cardBg,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _selectedSourceMode == AudioSourceMode.microphone
-                                ? const Color(0xFFD946EF)
-                                : Colors.white12,
+                                ? (isDark ? const Color(0xFF9D4EDD) : const Color(0xFF7C3AED))
+                                : borderColor,
                           ),
                         ),
                         child: Row(
@@ -288,18 +405,18 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                               Icons.mic_rounded,
                               size: 18,
                               color: _selectedSourceMode == AudioSourceMode.microphone
-                                  ? const Color(0xFFD946EF)
-                                  : Colors.white60,
+                                  ? (isDark ? const Color(0xFFD946EF) : const Color(0xFF7C3AED))
+                                  : textSubColor,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               '實體麥克風',
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w600,
                                 color: _selectedSourceMode == AudioSourceMode.microphone
-                                    ? Colors.white
-                                    : Colors.white70,
+                                    ? (isDark ? const Color(0xFFE2B8FF) : const Color(0xFF7C3AED))
+                                    : textSubColor,
                               ),
                             ),
                           ],
@@ -309,53 +426,37 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                _selectedSourceMode == AudioSourceMode.systemAudio
-                    ? '💡 原生系統音訊：Windows 採用 WASAPI Loopback 擷取播放音效；Android 10+ 支援內部音訊錄製（首次啟動請於系統彈窗點允許）。'
-                    : '💡 提示：用於現場講話口譯（自動開啟回音消除與降噪濾波）。',
-                style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 11),
-              ),
 
-              // Specific device selector if multiple devices found
               if (_availableDevices.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                const Text(
-                  '指定錄製端點 (Device)',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white60),
+                const SizedBox(height: 12),
+                Text(
+                  '指定錄製輸入端點 (選用)',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textSubColor),
                 ),
                 const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
+                    color: inputBg,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String?>(
                       value: _selectedDeviceId,
                       isExpanded: true,
-                      dropdownColor: const Color(0xFF182236),
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                      dropdownColor: dropdownBg,
+                      style: TextStyle(color: textColor, fontSize: 13),
+                      icon: Icon(Icons.arrow_drop_down, color: textSubColor),
                       items: [
-                        DropdownMenuItem<String?>(
+                        const DropdownMenuItem<String?>(
                           value: null,
-                          child: Text(
-                            _selectedSourceMode == AudioSourceMode.systemAudio
-                                ? '自動偵測系統音效 (立體聲混音 / 虛擬端點)'
-                                : '系統預設麥克風 (Default Microphone)',
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          child: Text('預設端點 (Default)'),
                         ),
                         ..._availableDevices.map((dev) {
-                          final label = (dev.label as String?)?.isNotEmpty == true
-                              ? dev.label as String
-                              : (dev.id as String);
                           return DropdownMenuItem<String?>(
-                            value: dev.id as String,
+                            value: dev.id as String?,
                             child: Text(
-                              label,
+                              dev.label?.toString() ?? dev.id.toString(),
                               overflow: TextOverflow.ellipsis,
                             ),
                           );
@@ -368,35 +469,32 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                   ),
                 ),
               ],
-              // Gemini Live Model Selector
-              const Text(
-                'Gemini Live 模型 (Model)',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white70),
+
+              const SizedBox(height: 16),
+
+              // Gemini Model Selector
+              Text(
+                'Live 模型架構',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSubColor),
               ),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
+                  color: inputBg,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: LiveConfig.availableModels.contains(_selectedModel)
-                        ? _selectedModel
-                        : LiveConfig.availableModels.first,
+                    value: _selectedModel,
                     isExpanded: true,
-                    dropdownColor: const Color(0xFF182236),
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                    dropdownColor: dropdownBg,
+                    style: TextStyle(color: textColor, fontSize: 13),
+                    icon: Icon(Icons.arrow_drop_down, color: textSubColor),
                     items: LiveConfig.availableModels.map((model) {
-                      final displayName = model.replaceFirst('models/', '');
                       return DropdownMenuItem<String>(
                         value: model,
-                        child: Text(
-                          displayName,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        child: Text(model),
                       );
                     }).toList(),
                     onChanged: (val) {
@@ -408,24 +506,24 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
               const SizedBox(height: 16),
 
               // Model Voice Selector
-              const Text(
+              Text(
                 '翻譯語音音色 (Voice)',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white70),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSubColor),
               ),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
+                  color: inputBg,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _selectedVoice,
                     isExpanded: true,
-                    dropdownColor: const Color(0xFF182236),
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                    dropdownColor: dropdownBg,
+                    style: TextStyle(color: textColor, fontSize: 14),
+                    icon: Icon(Icons.arrow_drop_down, color: textSubColor),
                     items: LiveConfig.availableVoices.map((voice) {
                       return DropdownMenuItem<String>(
                         value: voice,
@@ -443,10 +541,10 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
               // Autoplay switch
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                activeColor: const Color(0xFF00E5FF),
-                title: const Text(
+                activeColor: cyanPrimary,
+                title: Text(
                   '自動播放翻譯語音',
-                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                  style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500),
                 ),
                 subtitle: Text(
                   _selectedSourceMode == AudioSourceMode.systemAudio
@@ -454,8 +552,8 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                       : '開啟時朗讀譯文，建議配戴耳機避免麥克風回音',
                   style: TextStyle(
                     color: _selectedSourceMode == AudioSourceMode.systemAudio
-                        ? Colors.amberAccent.withOpacity(0.8)
-                        : Colors.white.withOpacity(0.4),
+                        ? (isDark ? Colors.amberAccent : const Color(0xFFD97706))
+                        : textMutedColor,
                     fontSize: 11,
                   ),
                 ),
@@ -471,8 +569,8 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                   Expanded(
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white70,
-                        side: BorderSide(color: Colors.white.withOpacity(0.15)),
+                        foregroundColor: textSubColor,
+                        side: BorderSide(color: borderColor),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
@@ -484,8 +582,8 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00E5FF),
-                        foregroundColor: Colors.black,
+                        backgroundColor: cyanPrimary,
+                        foregroundColor: isDark ? Colors.black : Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),

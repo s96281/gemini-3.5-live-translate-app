@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/languages.dart';
+import '../config/theme.dart';
 import '../models/live_config.dart';
 import '../models/translation_turn.dart';
 import '../services/audio_player_service.dart';
@@ -326,11 +327,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final targetLang = SupportedLanguages.findByCode(_config.targetLanguageCode);
     final isRecording = _recorderService.isRecording;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF090D16),
+      backgroundColor: isDark ? const Color(0xFF090D16) : const Color(0xFFF3F6FC),
       body: SafeArea(
         child: Stack(
           children: [
@@ -343,7 +345,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: 240,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF00E5FF).withOpacity(0.08),
+                  color: (isDark ? const Color(0xFF00E5FF) : const Color(0xFF0284C7))
+                      .withOpacity(isDark ? 0.08 : 0.05),
                 ),
               ),
             ),
@@ -355,7 +358,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: 280,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF7928CA).withOpacity(0.08),
+                  color: (isDark ? const Color(0xFF7928CA) : const Color(0xFF7C3AED))
+                      .withOpacity(isDark ? 0.08 : 0.05),
                 ),
               ),
             ),
@@ -364,7 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Column(
               children: [
                 // Top Header Bar
-                _buildHeader(targetLang),
+                _buildHeader(targetLang, isDark),
 
                 // Live Audio Wave Visualizer
                 Padding(
@@ -378,7 +382,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Subtitle Feed
                 Expanded(
                   child: _history.isEmpty && _currentTurn == null
-                      ? _buildEmptyState()
+                      ? _buildEmptyState(isDark)
                       : ListView.builder(
                           controller: _scrollController,
                           reverse: true, // Auto scrolls latest to bottom
@@ -402,7 +406,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
 
-            // Floating Bottom Control Bar
+            // Floating Bottom Control Bar (Never truncated on mobile)
             Positioned(
               bottom: 0,
               left: 0,
@@ -433,11 +437,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHeader(LanguageInfo targetLang) {
+  Widget _buildHeader(LanguageInfo targetLang, bool isDark) {
     final isSystemAudio = (_config.audioSourceMode == AudioSourceMode.systemAudio);
+    final cyanPrimary = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0284C7);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         children: [
           // Logo & Title
@@ -451,24 +456,24 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: const Icon(Icons.bolt, color: Colors.white, size: 20),
           ),
-          const SizedBox(width: 10),
-          const Column(
+          const SizedBox(width: 8),
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Gemini Live Translate',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 0.3,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  letterSpacing: 0.2,
                 ),
               ),
               Text(
                 'gemini-3.5-live-translate-preview',
                 style: TextStyle(
                   fontSize: 10,
-                  color: Color(0xFF00E5FF),
+                  color: cyanPrimary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -476,22 +481,56 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Spacer(),
 
+          // Dark / Light Theme Toggle Button
+          Tooltip(
+            message: isDark ? '切換為明亮風格' : '切換為黑暗風格',
+            child: InkWell(
+              onTap: AppThemes.toggleTheme,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.06) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDark ? Colors.white10 : const Color(0xFFCBD5E1),
+                  ),
+                  boxShadow: isDark
+                      ? []
+                      : [
+                          const BoxShadow(
+                            color: Color(0x0C000000),
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                ),
+                child: Icon(
+                  isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                  size: 15,
+                  color: isDark ? Colors.amberAccent : const Color(0xFF475569),
+                ),
+              ),
+            ),
+          ),
+
           // Audio Source Badge
           InkWell(
             onTap: _toggleAudioSourceMode,
             borderRadius: BorderRadius.circular(12),
             child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              margin: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
               decoration: BoxDecoration(
                 color: isSystemAudio
-                    ? const Color(0xFF00E5FF).withOpacity(0.12)
-                    : const Color(0xFF7928CA).withOpacity(0.12),
+                    ? (isDark ? const Color(0xFF00E5FF).withOpacity(0.12) : const Color(0xFFE0F2FE))
+                    : (isDark ? const Color(0xFF7928CA).withOpacity(0.12) : const Color(0xFFF3E8FF)),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isSystemAudio
-                      ? const Color(0xFF00E5FF).withOpacity(0.4)
-                      : const Color(0xFF7928CA).withOpacity(0.4),
+                      ? (isDark ? const Color(0xFF00E5FF).withOpacity(0.4) : const Color(0xFFBAE6FD))
+                      : (isDark ? const Color(0xFF7928CA).withOpacity(0.4) : const Color(0xFFDDD6FE)),
                 ),
               ),
               child: Row(
@@ -499,15 +538,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Icon(
                     isSystemAudio ? Icons.speaker_rounded : Icons.mic_rounded,
-                    size: 13,
-                    color: isSystemAudio ? const Color(0xFF00E5FF) : const Color(0xFFD946EF),
+                    size: 12,
+                    color: isSystemAudio
+                        ? cyanPrimary
+                        : (isDark ? const Color(0xFFD946EF) : const Color(0xFF7C3AED)),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 3),
                   Text(
                     isSystemAudio ? '系統音效' : '麥克風',
                     style: TextStyle(
-                      fontSize: 11,
-                      color: isSystemAudio ? const Color(0xFF00E5FF) : const Color(0xFFE2B8FF),
+                      fontSize: 10,
+                      color: isSystemAudio
+                          ? cyanPrimary
+                          : (isDark ? const Color(0xFFE2B8FF) : const Color(0xFF7C3AED)),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -517,13 +560,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
 
           // Connection State Pill
-          _buildConnectionPill(),
+          _buildConnectionPill(isDark),
         ],
       ),
     );
   }
 
-  Widget _buildConnectionPill() {
+  Widget _buildConnectionPill(bool isDark) {
     Color dotColor;
     String statusText;
 
@@ -533,11 +576,11 @@ class _HomeScreenState extends State<HomeScreen> {
         statusText = '連線中...';
         break;
       case LiveConnectionState.connected:
-        dotColor = const Color(0xFF00E5FF);
+        dotColor = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0284C7);
         statusText = 'Ready';
         break;
       case LiveConnectionState.translating:
-        dotColor = Colors.greenAccent;
+        dotColor = isDark ? Colors.greenAccent : const Color(0xFF16A34A);
         statusText = 'Live 翻譯中';
         break;
       case LiveConnectionState.error:
@@ -546,41 +589,50 @@ class _HomeScreenState extends State<HomeScreen> {
         break;
       case LiveConnectionState.disconnected:
       default:
-        dotColor = Colors.white30;
+        dotColor = isDark ? Colors.white30 : const Color(0xFF94A3B8);
         statusText = '待命';
         break;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: isDark ? Colors.white.withOpacity(0.06) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: isDark ? Colors.white10 : const Color(0xFFCBD5E1)),
+        boxShadow: isDark
+            ? []
+            : [
+                const BoxShadow(
+                  color: Color(0x0C000000),
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 7,
-            height: 7,
+            width: 6,
+            height: 6,
             decoration: BoxDecoration(
               color: dotColor,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
                   color: dotColor.withOpacity(0.6),
-                  blurRadius: 6,
+                  blurRadius: 5,
                   spreadRadius: 1,
                 )
               ],
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Text(
             statusText,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w600,
               color: dotColor,
             ),
@@ -590,7 +642,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isDark) {
     final isSystemAudio = (_config.audioSourceMode == AudioSourceMode.systemAudio);
 
     return Center(
@@ -600,25 +652,33 @@ class _HomeScreenState extends State<HomeScreen> {
           Icon(
             isSystemAudio ? Icons.speaker_rounded : Icons.graphic_eq_rounded,
             size: 64,
-            color: Colors.white.withOpacity(0.14),
+            color: isDark ? Colors.white.withOpacity(0.14) : const Color(0xFFCBD5E1),
           ),
           const SizedBox(height: 16),
-          Text(
-            isSystemAudio ? '播放電腦/手機音效，並點擊下方按鈕開始即時口譯' : '對著麥克風說話，並點擊下方按鈕開始即時口譯',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Colors.white.withOpacity(0.7),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              isSystemAudio ? '播放電腦/手機音效，並點擊下方按鈕開始即時口譯' : '對著麥克風說話，並點擊下方按鈕開始即時口譯',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white.withOpacity(0.8) : const Color(0xFF1E293B),
+              ),
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            isSystemAudio
-                ? '已設定為裝置音效模式（影片/會議/遊戲），自動關閉抑噪以保留原始聲音細節'
-                : '裝置將以 16kHz PCM 麥克風音訊即時串流至 Gemini 3.5 Live',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.white.withOpacity(0.35),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Text(
+              isSystemAudio
+                  ? '已設定為裝置音效模式（影片/會議/遊戲），自動關閉抑噪以保留原始聲音細節'
+                  : '裝置將以 16kHz PCM 麥克風音訊即時串流至 Gemini 3.5 Live',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.white.withOpacity(0.35) : const Color(0xFF64748B),
+              ),
             ),
           ),
         ],

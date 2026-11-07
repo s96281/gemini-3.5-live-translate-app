@@ -1,7 +1,7 @@
 name: gemini_live_translate
 description: "Cross-platform real-time voice translation app powered by Google AI Studio Gemini 3.5 Live Translate."
 publish_to: 'none'
-version: 1.1.4+6
+version: 1.1.5+7
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

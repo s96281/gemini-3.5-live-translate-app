@@ -65,13 +65,21 @@ class _LanguageSelectorModalState extends State<LanguageSelectorModal> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cyanColor = isDark ? const Color(0xFF00E5FF) : const Color(0xFF0284C7);
+    final bgColor = isDark ? const Color(0xFF101624) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtextColor = isDark ? Colors.white.withOpacity(0.45) : const Color(0xFF64748B);
+    final borderColor = isDark ? Colors.white12 : const Color(0xFFE2E8F0);
+    final searchBg = isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFF1F5F9);
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.75,
-      decoration: const BoxDecoration(
-        color: Color(0xFF101624),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border(
-          top: BorderSide(color: Colors.white12, width: 1),
+          top: BorderSide(color: borderColor, width: 1),
         ),
       ),
       child: Column(
@@ -82,7 +90,7 @@ class _LanguageSelectorModalState extends State<LanguageSelectorModal> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -91,17 +99,17 @@ class _LanguageSelectorModalState extends State<LanguageSelectorModal> {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               children: [
-                const Text(
+                Text(
                   '選擇目標翻譯語言',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: textColor,
                   ),
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white60),
+                  icon: Icon(Icons.close, color: subtextColor),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -112,13 +120,13 @@ class _LanguageSelectorModalState extends State<LanguageSelectorModal> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: TextField(
               controller: _searchController,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: textColor),
               decoration: InputDecoration(
                 hintText: '搜尋語言名稱或代碼 (如: 日本語, en, 繁體中文)...',
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.35)),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF00E5FF)),
+                hintStyle: TextStyle(color: subtextColor),
+                prefixIcon: Icon(Icons.search, color: cyanColor),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.06),
+                fillColor: searchBg,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
@@ -145,18 +153,18 @@ class _LanguageSelectorModalState extends State<LanguageSelectorModal> {
                     lang.nameZh,
                     style: TextStyle(
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? const Color(0xFF00E5FF) : Colors.white,
+                      color: isSelected ? cyanColor : textColor,
                     ),
                   ),
                   subtitle: Text(
                     '${lang.nameNative} (${lang.code})',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.45),
+                      color: subtextColor,
                       fontSize: 12,
                     ),
                   ),
                   trailing: isSelected
-                      ? const Icon(Icons.check_circle, color: Color(0xFF00E5FF), size: 20)
+                      ? Icon(Icons.check_circle, color: cyanColor, size: 20)
                       : null,
                   onTap: () {
                     widget.onSelected(lang);

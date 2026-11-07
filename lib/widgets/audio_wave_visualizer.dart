@@ -6,15 +6,15 @@ import 'package:flutter/material.dart';
 class AudioWaveVisualizer extends StatefulWidget {
   final double amplitude; // 0.0 ~ 1.0 normalized
   final bool isRecording;
-  final Color primaryColor;
-  final Color secondaryColor;
+  final Color? primaryColor;
+  final Color? secondaryColor;
 
   const AudioWaveVisualizer({
     super.key,
     required this.amplitude,
     required this.isRecording,
-    this.primaryColor = const Color(0xFF00E5FF),
-    this.secondaryColor = const Color(0xFF7928CA),
+    this.primaryColor,
+    this.secondaryColor,
   });
 
   @override
@@ -42,6 +42,10 @@ class _AudioWaveVisualizerState extends State<AudioWaveVisualizer>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = widget.primaryColor ?? (isDark ? const Color(0xFF00E5FF) : const Color(0xFF0284C7));
+    final secondary = widget.secondaryColor ?? (isDark ? const Color(0xFF7928CA) : const Color(0xFF7C3AED));
+
     return AnimatedBuilder(
       animation: _animController,
       builder: (context, child) {
@@ -51,8 +55,9 @@ class _AudioWaveVisualizerState extends State<AudioWaveVisualizer>
             phase: _animController.value * 2 * pi,
             amplitude: widget.isRecording ? (widget.amplitude * 0.85 + 0.15) : 0.05,
             isRecording: widget.isRecording,
-            primaryColor: widget.primaryColor,
-            secondaryColor: widget.secondaryColor,
+            primaryColor: primary,
+            secondaryColor: secondary,
+            isDark: isDark,
           ),
         );
       },
@@ -66,6 +71,7 @@ class _WavePainter extends CustomPainter {
   final bool isRecording;
   final Color primaryColor;
   final Color secondaryColor;
+  final bool isDark;
 
   _WavePainter({
     required this.phase,
@@ -73,6 +79,7 @@ class _WavePainter extends CustomPainter {
     required this.isRecording,
     required this.primaryColor,
     required this.secondaryColor,
+    this.isDark = true,
   });
 
   @override
@@ -104,7 +111,8 @@ class _WavePainter extends CustomPainter {
       phaseOffset: phase * 1.8 + 2.5,
       freqMultiplier: 2.2,
       ampMultiplier: amplitude * 16.0,
-      color: Colors.white.withOpacity(isRecording ? 0.9 : 0.3),
+      color: (isDark ? Colors.white : const Color(0xFF0F172A))
+          .withOpacity(isRecording ? 0.85 : 0.25),
       strokeWidth: 1.5,
     );
   }
