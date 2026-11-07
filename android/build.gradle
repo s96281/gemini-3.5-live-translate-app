@@ -18,9 +18,11 @@ rootProject.ext {
 
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
-    project.ext.set("flutter", rootProject.ext.flutter)
-    if (!project.extensions.findByName("flutter")) {
-        project.extensions.add("flutter", rootProject.ext.flutter)
+    if (project.name != "app") {
+        project.ext.set("flutter", rootProject.ext.flutter)
+        if (!project.extensions.findByName("flutter")) {
+            project.extensions.add("flutter", rootProject.ext.flutter)
+        }
     }
 }
 
@@ -30,7 +32,7 @@ subprojects {
 
 subprojects {
     afterEvaluate { project ->
-        if (project.hasProperty("android")) {
+        if (project.name != "app" && project.hasProperty("android")) {
             project.android {
                 compileSdkVersion 34
             }
