@@ -112,10 +112,14 @@ jobs:
           cp android-artifact/app-release.apk GeminiLiveTranslate-${TAG}.apk
           ls -la GeminiLiveTranslate*
 
-      - name: Upload to Release
+      - name: Create and Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.prepare.outputs.target_tag }}
+          name: "${{ steps.prepare.outputs.target_tag }} - Gemini 3.5 Live Translate"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
           files: |
             GeminiLiveTranslate-Windows-x64-${{ steps.prepare.outputs.target_tag }}.zip
             GeminiLiveTranslate-${{ steps.prepare.outputs.target_tag }}.apk

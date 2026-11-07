@@ -101,9 +101,16 @@ flutter build apk --release
 
 ---
 
-## 🛠️ 單元測試驗證 (Unit Tests)
-執行自動化測試驗證通訊協議與資料模型：
+---
+
+## 🚀 CI/CD 自動發布 (Automated Release on Tag Push)
+本專案已完整整合 GitHub Actions CI/CD 自動化流程。只要在 Git 中建立版本標籤並推送：
 ```bash
-flutter test --no-pub
+git tag v1.2.0
+git push origin v1.2.0
 ```
-驗證結果：9/9 測試項目全數通過，涵蓋 WebSocket Setup JSON 協議驗證、16kHz PCM Base64 分片封裝、以及 24kHz 語音譯文解析。
+GitHub Actions 將自動完成：
+1. 在 Windows-2022 原生環境編譯 Windows x64 執行檔並壓縮為 `GeminiLiveTranslate-Windows-x64-v1.2.0.zip`。
+2. 在 Ubuntu/JDK 17/Android SDK 環境編譯 Android Release APK `GeminiLiveTranslate-v1.2.0.apk`。
+3. 自動建立 GitHub Release、產生 Commit 變更日誌，並掛載雙平台安裝檔發布。
+

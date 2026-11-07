@@ -308,9 +308,9 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
               const SizedBox(height: 6),
               Text(
                 _selectedSourceMode == AudioSourceMode.systemAudio
-                    ? '💡 提示：用於翻譯影片、線上會議或遊戲背景音（系統自動關閉降噪與回音消除以確保清晰原音）。'
+                    ? '💡 原生系統音訊：Windows 採用 WASAPI Loopback 擷取播放音效；Android 10+ 支援內部音訊錄製（首次啟動請於系統彈窗點允許）。'
                     : '💡 提示：用於現場講話口譯（自動開啟回音消除與降噪濾波）。',
-                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+                style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 11),
               ),
 
               // Specific device selector if multiple devices found

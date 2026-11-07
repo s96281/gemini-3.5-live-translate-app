@@ -3,10 +3,14 @@
 
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <flutter/event_channel.h>
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
 
 #include <memory>
 
 #include "win32_window.h"
+#include "wasapi_loopback_capture.h"
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
@@ -23,11 +27,19 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  void SetupSystemAudioChannels();
+
   // The project to run.
   flutter::DartProject project_;
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  // Native WASAPI loopback audio capture
+  std::unique_ptr<WasapiLoopbackCapture> wasapi_capture_;
+  std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> event_sink_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> method_channel_;
+  std::unique_ptr<flutter::EventChannel<flutter::EncodableValue>> event_channel_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

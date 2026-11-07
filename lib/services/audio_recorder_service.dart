@@ -4,12 +4,16 @@ import 'dart:typed_data';
 
 import 'package:record/record.dart';
 import '../models/live_config.dart';
+import 'native_system_audio_service.dart';
 
 /// Service responsible for recording raw 16kHz 16-bit linear PCM audio from the device
-/// (system playback audio or microphone) and emitting 100ms chunks (3200 bytes) along with normalized amplitude.
+/// (native system playback audio loopback or physical microphone) and emitting 100ms chunks (3200 bytes) along with normalized amplitude.
 class AudioRecorderService {
   final AudioRecorder _audioRecorder = AudioRecorder();
+  final NativeSystemAudioService _nativeAudioService = NativeSystemAudioService();
+
   StreamSubscription<Uint8List>? _recordStreamSub;
+  StreamSubscription<Uint8List>? _nativeStreamSub;
 
   final StreamController<Uint8List> _chunkController =
       StreamController<Uint8List>.broadcast();
@@ -22,9 +26,11 @@ class AudioRecorderService {
 
   bool _isRecording = false;
   AudioSourceMode _currentMode = AudioSourceMode.systemAudio;
+  bool _isUsingNativeLoopback = false;
 
   bool get isRecording => _isRecording;
   AudioSourceMode get currentMode => _currentMode;
+  bool get isUsingNativeLoopback => _isUsingNativeLoopback;
   Stream<Uint8List> get audioChunkStream => _chunkController.stream;
   Stream<double> get amplitudeStream => _amplitudeController.stream;
 
@@ -51,13 +57,45 @@ class AudioRecorderService {
   }) async {
     if (_isRecording) return;
 
+    _currentMode = sourceMode;
+    _buffer.clear();
+    _isUsingNativeLoopback = false;
+
+    // 1. 若為「系統播放音效」且未指定硬體端點，優先啟用平台原生 Loopback 擷取
+    // Windows: WASAPI Loopback 擷取喇叭/耳機輸出 (AUDCLNT_STREAMFLAGS_LOOPBACK)
+    // Android: AudioPlaybackCapture API (Android 10+ 透過 MediaProjection 系統音訊擷取)
+    if (sourceMode == AudioSourceMode.systemAudio && (deviceId == null || deviceId.isEmpty)) {
+      final isNativeSupported = await NativeSystemAudioService.isSupported();
+      if (isNativeSupported) {
+        try {
+          final started = await _nativeAudioService.startCapture();
+          if (started) {
+            _isUsingNativeLoopback = true;
+            _isRecording = true;
+            _nativeStreamSub = _nativeAudioService.audioStream.listen(
+              (data) {
+                _processIncomingPcm(data);
+              },
+              onError: (err) {
+                _isRecording = false;
+              },
+              onDone: () {
+                _isRecording = false;
+              },
+            );
+            return;
+          }
+        } catch (_) {
+          // 若原生擷取被使用者取消或失敗，自動退回使用常規錄音端點
+        }
+      }
+    }
+
+    // 2. 常規錄音端點錄製（麥克風模式或手動指定端點）
     final hasPerm = await hasPermission();
     if (!hasPerm) {
       throw Exception('未獲得音訊錄製權限，請於系統設定中授權。');
     }
-
-    _currentMode = sourceMode;
-    _buffer.clear();
 
     InputDevice? selectedDevice;
     final devices = await getAvailableInputDevices();
@@ -68,7 +106,7 @@ class AudioRecorderService {
             orElse: () => null,
           );
     } else if (sourceMode == AudioSourceMode.systemAudio) {
-      // 智慧比對系統播放音效裝置（立體聲混音 / Stereo Mix / Loopback / Virtual Cable）
+      // 智慧比對立體聲混音 / Stereo Mix / Loopback / Virtual Cable 端點
       selectedDevice = devices.cast<InputDevice?>().firstWhere(
             (d) {
               if (d == null) return false;
@@ -85,8 +123,6 @@ class AudioRecorderService {
           );
     }
 
-    // 依據音訊來源調整 DSP 濾波：
-    // 錄製系統音效時必須關閉 echoCancel 與 noiseSuppress，避免作業系統誤將播放音效濾除
     final bool isSystemAudio = (sourceMode == AudioSourceMode.systemAudio);
 
     final recordStream = await _audioRecorder.startStream(
@@ -147,9 +183,16 @@ class AudioRecorderService {
     if (!_isRecording) return;
     _isRecording = false;
 
-    await _recordStreamSub?.cancel();
-    _recordStreamSub = null;
-    await _audioRecorder.stop();
+    if (_isUsingNativeLoopback) {
+      await _nativeStreamSub?.cancel();
+      _nativeStreamSub = null;
+      await _nativeAudioService.stopCapture();
+      _isUsingNativeLoopback = false;
+    } else {
+      await _recordStreamSub?.cancel();
+      _recordStreamSub = null;
+      await _audioRecorder.stop();
+    }
 
     // Flush any leftover buffer if it has meaningful data
     if (_buffer.length >= 800) {
@@ -162,6 +205,7 @@ class AudioRecorderService {
   void dispose() {
     stopRecording();
     _audioRecorder.dispose();
+    _nativeAudioService.dispose();
     _chunkController.close();
     _amplitudeController.close();
   }
