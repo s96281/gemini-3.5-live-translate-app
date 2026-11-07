@@ -1,0 +1,37 @@
+name: gemini_live_translate
+description: "Cross-platform real-time voice translation app powered by Google AI Studio Gemini 3.5 Live Translate."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # WebSocket for Gemini Live bidirectional streaming
+  web_socket_channel: ^3.0.1
+
+  # Native Audio Recording (PCM streaming from microphone on Windows & Android)
+  record: ^5.1.2
+
+  # Native Audio Playback for 24kHz PCM / translated speech
+  audioplayers: ^6.0.0
+
+  # Persistent Local Storage for API Key and Preferences
+  shared_preferences: ^2.3.2
+
+  # UI & Design Icons and Aesthetics
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
