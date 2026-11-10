@@ -185,9 +185,9 @@ void FlutterWindow::SetupWindowChannels() {
           }
           LONG_PTR ex_style = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
           if (ignore) {
-            SetWindowLongPtr(hwnd, GWL_EXSTYLE, ex_style | WS_EX_TRANSPARENT | WS_EX_LAYERED);
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE, ex_style | WS_EX_TRANSPARENT);
           } else {
-            SetWindowLongPtr(hwnd, GWL_EXSTYLE, (ex_style & ~WS_EX_TRANSPARENT) | WS_EX_LAYERED);
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE, ex_style & ~WS_EX_TRANSPARENT);
           }
           result->Success(flutter::EncodableValue(true));
         } else if (call.method_name() == "startDragging") {

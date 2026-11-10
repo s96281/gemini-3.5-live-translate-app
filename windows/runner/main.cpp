@@ -33,19 +33,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
   window.SetQuitOnClose(true);
 
-  // 配置 Windows DWM 透明緩衝區與分層樣式
-  HWND hwnd = window.GetHandle();
-  if (hwnd) {
-    MARGINS margins = {-1, -1, -1, -1};
-    ::DwmExtendFrameIntoClientArea(hwnd, &margins);
-
-    LONG_PTR exStyle = ::GetWindowLongPtr(hwnd, GWL_EXSTYLE);
-    ::SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
-
-    ::SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
-                   SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
-  }
-
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
     ::TranslateMessage(&msg);
