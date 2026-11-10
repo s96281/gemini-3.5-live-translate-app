@@ -107,11 +107,7 @@ std::vector<HWND> GetSubwindows(HWND main_hwnd) {
     GetWindowThreadProcessId(hwnd, &pid);
     if (pid == GetCurrentProcessId()) {
       if (GetParent(hwnd) == nullptr) {
-        wchar_t class_name[256] = {0};
-        GetClassNameW(hwnd, class_name, 256);
-        if (wcscmp(class_name, L"FLUTTER_RUNNER_WIN32_WINDOW") == 0) {
-          p_subwindows->push_back(hwnd);
-        }
+        p_subwindows->push_back(hwnd);
       }
     }
     return TRUE;
@@ -384,6 +380,38 @@ void FlutterWindow::SetupWindowChannels() {
             ReleaseCapture();
             SendMessage(sub, WM_NCLBUTTONDOWN, HTCAPTION, 0);
             break;
+          }
+          result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "moveSubwindow") {
+          double dx = 0.0;
+          double dy = 0.0;
+          if (call.arguments()) {
+            if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
+              auto dx_it = args->find(flutter::EncodableValue("dx"));
+              if (dx_it != args->end()) {
+                if (std::holds_alternative<double>(dx_it->second)) {
+                  dx = std::get<double>(dx_it->second);
+                } else if (std::holds_alternative<int>(dx_it->second)) {
+                  dx = static_cast<double>(std::get<int>(dx_it->second));
+                }
+              }
+              auto dy_it = args->find(flutter::EncodableValue("dy"));
+              if (dy_it != args->end()) {
+                if (std::holds_alternative<double>(dy_it->second)) {
+                  dy = std::get<double>(dy_it->second);
+                } else if (std::holds_alternative<int>(dy_it->second)) {
+                  dy = static_cast<double>(std::get<int>(dy_it->second));
+                }
+              }
+            }
+          }
+          auto subwindows = GetSubwindows(hwnd);
+          for (HWND sub : subwindows) {
+            RECT rc;
+            if (GetWindowRect(sub, &rc)) {
+              SetWindowPos(sub, nullptr, rc.left + static_cast<int>(dx), rc.top + static_cast<int>(dy), 0, 0,
+                           SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
           }
           result->Success(flutter::EncodableValue(true));
         } else if (call.method_name() == "closeSubwindow") {

@@ -41,20 +41,24 @@ class SubtitleOverlayManager {
           isClickThroughLocked.value = enable;
           await WindowService.setSubwindowIgnoreMouseEvents(enable);
           return true;
+        } else if (call.method == 'moveSubwindow') {
+          if (call.arguments is Map) {
+            final args = call.arguments as Map;
+            final double dx = (args['dx'] as num?)?.toDouble() ?? 0.0;
+            final double dy = (args['dy'] as num?)?.toDouble() ?? 0.0;
+            await WindowService.moveSubwindow(dx, dy);
+          }
+          return true;
         } else if (call.method == 'startDraggingSubwindow') {
           await WindowService.startDraggingSubwindow();
           return true;
         } else if (call.method == 'closeSubtitleWindow' || call.method == 'onSubtitleWindowClosed') {
-          _subtitleWindowId = null;
-          isOverlayActive.value = false;
-          isClickThroughLocked.value = false;
-          await WindowService.closeSubwindow();
+          await closeSubtitleWindow();
           debugPrint('[SubtitleOverlayManager] Subtitle window was closed.');
           return true;
         }
         return null;
       });
-      initHotKey();
     } catch (e) {
       debugPrint('[SubtitleOverlayManager] initMainIpcHandler error: $e');
     }
@@ -64,6 +68,8 @@ class SubtitleOverlayManager {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       try {
         await hotKeyManager.unregister(_toggleLockHotKey);
+      } catch (_) {}
+      try {
         await hotKeyManager.register(
           _toggleLockHotKey,
           keyDownHandler: (hotKey) => toggleClickThrough(),
@@ -71,6 +77,14 @@ class SubtitleOverlayManager {
       } catch (e) {
         debugPrint('[SubtitleOverlayManager] hotkey register error: $e');
       }
+    }
+  }
+
+  Future<void> disposeHotKey() async {
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      try {
+        await hotKeyManager.unregister(_toggleLockHotKey);
+      } catch (_) {}
     }
   }
 
@@ -110,8 +124,6 @@ class SubtitleOverlayManager {
     }
 
     try {
-      const double initialLeft = 240.0;
-      const double initialTop = 680.0;
       const double initialWidth = 880.0;
       const double initialHeight = 160.0;
 
@@ -120,8 +132,6 @@ class SubtitleOverlayManager {
         'sourceText': initialSource,
         'translatedText': initialTarget,
         'targetLangCode': targetLangCode,
-        'left': initialLeft,
-        'top': initialTop,
         'width': initialWidth,
         'height': initialHeight,
       }));
@@ -130,9 +140,10 @@ class SubtitleOverlayManager {
       isOverlayActive.value = true;
       isClickThroughLocked.value = false;
 
-      // Position the subtitle window near the lower center of the screen (lyrics style)
+      // Position the subtitle window near the center of the screen
       window
-        ..setFrame(const Offset(initialLeft, initialTop) & const Size(initialWidth, initialHeight))
+        ..setFrame(const Offset(100, 100) & const Size(initialWidth, initialHeight))
+        ..center()
         ..show();
 
       // Configure Win32 styles: remove standard borders/titlebar, apply DWM full transparency, set always-on-top
@@ -140,6 +151,12 @@ class SubtitleOverlayManager {
       Future.delayed(const Duration(milliseconds: 150), () {
         WindowService.configureSubwindowAsOverlay();
       });
+      Future.delayed(const Duration(milliseconds: 400), () {
+        WindowService.configureSubwindowAsOverlay();
+      });
+
+      // Safely register global hotkey now that the window is launched
+      await initHotKey();
 
       debugPrint('[SubtitleOverlayManager] Subtitle window launched (id: $_subtitleWindowId)');
       return true;
@@ -156,6 +173,8 @@ class SubtitleOverlayManager {
     _subtitleWindowId = null;
     isOverlayActive.value = false;
     isClickThroughLocked.value = false;
+
+    await disposeHotKey();
 
     try {
       await DesktopMultiWindow.invokeMethod(id, 'closeSubtitleWindow');

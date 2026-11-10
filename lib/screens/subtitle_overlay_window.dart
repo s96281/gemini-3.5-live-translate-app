@@ -32,12 +32,6 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
   bool _isFinal = false;
   String _targetLangCode = 'zh-TW';
 
-  // Window Geometry State
-  double _posX = 240.0;
-  double _posY = 680.0;
-  double _width = 880.0;
-  double _height = 160.0;
-
   // Window State
   bool _isClickThrough = false;
   double _fontSize = 22.0;
@@ -49,18 +43,6 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
       _sourceText = widget.initialArguments['sourceText'] ?? _sourceText;
       _translatedText = widget.initialArguments['translatedText'] ?? _translatedText;
       _targetLangCode = widget.initialArguments['targetLangCode'] ?? _targetLangCode;
-      if (widget.initialArguments.containsKey('left')) {
-        _posX = (widget.initialArguments['left'] as num).toDouble();
-      }
-      if (widget.initialArguments.containsKey('top')) {
-        _posY = (widget.initialArguments['top'] as num).toDouble();
-      }
-      if (widget.initialArguments.containsKey('width')) {
-        _width = (widget.initialArguments['width'] as num).toDouble();
-      }
-      if (widget.initialArguments.containsKey('height')) {
-        _height = (widget.initialArguments['height'] as num).toDouble();
-      }
     }
     _setupIpcListener();
   }
@@ -144,18 +126,12 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
       backgroundColor: Colors.transparent,
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onPanStart: (_) {
-          try {
-            DesktopMultiWindow.invokeMethod(0, 'startDraggingSubwindow');
-          } catch (_) {}
-        },
         onPanUpdate: (details) {
-          _posX += details.delta.dx;
-          _posY += details.delta.dy;
           try {
-            WindowController.fromWindowId(widget.windowId).setFrame(
-              Offset(_posX, _posY) & Size(_width, _height),
-            );
+            DesktopMultiWindow.invokeMethod(0, 'moveSubwindow', {
+              'dx': details.delta.dx,
+              'dy': details.delta.dy,
+            });
           } catch (_) {}
         },
         child: Container(

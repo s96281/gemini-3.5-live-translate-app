@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:hotkey_manager/hotkey_manager.dart';
 import 'config/theme.dart';
 import 'screens/home_screen.dart';
 import 'screens/subtitle_overlay_window.dart';
@@ -32,6 +34,15 @@ void main(List<String> args) async {
 
   // 主程式視窗啟動流程
   await AppThemes.init();
+
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    try {
+      await hotKeyManager.unregisterAll();
+    } catch (e) {
+      debugPrint('[main] hotKeyManager.unregisterAll error: $e');
+    }
+  }
+
   SubtitleOverlayManager.instance.initMainIpcHandler();
   runApp(const GeminiLiveTranslateApp());
 }

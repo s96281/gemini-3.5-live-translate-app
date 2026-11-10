@@ -103,6 +103,20 @@ class WindowService {
     }
   }
 
+  /// Moves secondary subwindow by delta offset using native Win32 SetWindowPos.
+  static Future<bool> moveSubwindow(double dx, double dy) async {
+    if (!Platform.isWindows) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('moveSubwindow', {
+        'dx': dx,
+        'dy': dy,
+      });
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Closes secondary subwindows via native Win32 WM_CLOSE.
   static Future<bool> closeSubwindow() async {
     if (!Platform.isWindows) return false;
