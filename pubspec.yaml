@@ -1,7 +1,7 @@
 name: gemini_live_translate
 description: "Cross-platform real-time voice translation app powered by Google AI Studio Gemini 3.5 Live Translate."
 publish_to: 'none'
-version: 1.1.7+9
+version: 1.2.0+10
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -27,6 +27,11 @@ dependencies:
 
   # UI & Design Icons and Aesthetics
   cupertino_icons: ^1.0.8
+
+  # Windows Desktop Floating Subtitle & Multi-Window Management
+  window_manager: ^0.3.9
+  desktop_multi_window: ^0.2.0
+  hotkey_manager: ^0.2.3
 
 dev_dependencies:
   flutter_test:

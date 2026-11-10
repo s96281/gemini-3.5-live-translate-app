@@ -20,11 +20,17 @@
 3. **雙語即時流式字幕**：
    - 即時顯示發話端原始語音聽打 (`inputAudioTranscription`) 與譯文 (`outputAudioTranscription`)。
    - 支援自動滾動、一鍵複製剪貼簿、歷史回話瀏覽與清除。
-4. **現代科技風介面 (Cyberpunk / Modern Glassmorphism)**：
-   - 深邃黑底搭配霓虹青（Cyan）與電光紫（Purple）光暈。
+4. **Windows 桌面全透明懸浮字幕視窗 (Lyrics / Overlay Mode)**：
+   - 建立類似音樂播放器歌詞的**「無邊框、背景 100% 全透明、視窗置頂（Always-on-Top）」**獨立懸浮視窗。
+   - 支援**滑鼠事件穿透（Click-through / Ignore Mouse Events）**：滑鼠點擊可直接穿透字幕視窗操作背景遊戲、影片或瀏覽器。
+   - 支援**全域快捷鍵（Ctrl + F8）**隨時解鎖穿透並進入拖曳模式，任意擺放字幕位置。
+   - 雙層文字高對比度描邊（Text Stroke）與環境陰影，確保在任何亮暗桌布或畫面下均清晰易讀。
+   - 跨視窗即時 IPC 串流推播（`desktop_multi_window`），無縫同步 Gemini 即時口譯文字。
+5. **現代科技風介面 (Cyberpunk / Modern Glassmorphism)**：
+   - 深邃黑底搭配霓虹青（Cyan）與電光紫（Purple）光暈，支援黑暗與明亮風格切換。
    - 基於 GPU Canvas 加速繪製的即時音波動態視覺化波形（`AudioWaveVisualizer`）。
    - 懸浮式毛玻璃膠囊控制列，支援**一鍵快速切換「🔊 系統音效」與「🎤 麥克風」**。
-5. **支援 70+ 種語言與多款 AI 語音音色**：
+6. **支援 70+ 種語言與多款 AI 語音音色**：
    - 預設目標語言：**繁體中文 (zh-TW)**，可即時切換英語、日語、韓語、德語、法語、西班牙語等 70+ 種語言。
    - 支援 5 種 Gemini Live 預設音色：`Puck` (自然平衡)、`Charon` (沉穩渾厚)、`Kore` (溫柔親切)、`Fenrir` (清晰活力)、`Aoede` (輕柔優雅)。
 

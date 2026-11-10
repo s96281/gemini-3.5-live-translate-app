@@ -175,6 +175,25 @@ void FlutterWindow::SetupWindowChannels() {
           SetWindowPos(hwnd, on_top ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
           result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "setIgnoreMouseEvents") {
+          bool ignore = false;
+          if (call.arguments()) {
+            if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
+              auto it = args->find(flutter::EncodableValue("ignore"));
+              if (it != args->end()) ignore = std::get<bool>(it->second);
+            }
+          }
+          LONG_PTR ex_style = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+          if (ignore) {
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE, ex_style | WS_EX_TRANSPARENT | WS_EX_LAYERED);
+          } else {
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE, (ex_style & ~WS_EX_TRANSPARENT) | WS_EX_LAYERED);
+          }
+          result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "startDragging") {
+          ReleaseCapture();
+          SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+          result->Success(flutter::EncodableValue(true));
         } else {
           result->NotImplemented();
         }

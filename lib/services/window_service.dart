@@ -43,4 +43,28 @@ class WindowService {
       return false;
     }
   }
+
+  /// Sets whether mouse events pass straight through the window (click-through mode).
+  static Future<bool> setIgnoreMouseEvents(bool ignore) async {
+    if (!Platform.isWindows) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('setIgnoreMouseEvents', {
+        'ignore': ignore,
+      });
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Triggers smooth native window dragging on Windows (WM_NCLBUTTONDOWN).
+  static Future<bool> startDragging() async {
+    if (!Platform.isWindows) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('startDragging');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 }

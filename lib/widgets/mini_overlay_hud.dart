@@ -5,6 +5,7 @@ import '../config/languages.dart';
 import '../models/live_config.dart';
 import '../models/translation_turn.dart';
 import '../services/gemini_live_client.dart';
+import '../services/window_service.dart';
 
 /// Compact, floating picture-in-picture subtitle HUD widget.
 /// Ideal for watching movies, streaming conferences, or gaming with real-time translation on top.
@@ -64,7 +65,10 @@ class _MiniOverlayHudState extends State<MiniOverlayHud> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Container(
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onPanStart: (_) => WindowService.startDragging(),
+        child: Container(
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
@@ -258,6 +262,7 @@ class _MiniOverlayHudState extends State<MiniOverlayHud> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
