@@ -90,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final savedAutoPlay = prefs.getBool('gemini_autoplay') ?? false;
     final savedSourceStr = prefs.getString('gemini_audio_source_mode') ?? 'systemAudio';
     final savedDeviceId = prefs.getString('gemini_selected_device_id');
+    final savedMaxParagraphLength = prefs.getInt('gemini_max_paragraph_length') ?? 50;
     final sourceMode = (savedSourceStr == 'microphone')
         ? AudioSourceMode.microphone
         : AudioSourceMode.systemAudio;
@@ -103,6 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
         autoPlayAudio: savedAutoPlay,
         audioSourceMode: sourceMode,
         selectedDeviceId: savedDeviceId,
+        maxParagraphLength: savedMaxParagraphLength,
       );
       _isMuted = !savedAutoPlay;
       _playerService.isMuted = _isMuted;
@@ -250,14 +252,37 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onSourceSpeechReceived(String text) {
-    setState(() {
-      _currentTurn ??= TranslationTurn(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        timestamp: DateTime.now(),
-        targetLanguageCode: _config.targetLanguageCode,
-      );
-      _currentTurn!.sourceText += text;
-    });
+    if (text.isEmpty) return;
+
+    _currentTurn ??= TranslationTurn(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      timestamp: DateTime.now(),
+      targetLanguageCode: _config.targetLanguageCode,
+    );
+
+    _currentTurn!.sourceText += text;
+
+    // 若僅有原始語音辨識（譯文為空），依照段落硬切割字數自動分段
+    final maxLen = _config.maxParagraphLength;
+    if (maxLen > 0 && _currentTurn!.targetText.isEmpty) {
+      final cutPos = _findSourceOnlyCutIndex(_currentTurn!.sourceText, maxLen);
+      if (cutPos != null && cutPos > 0 && cutPos < _currentTurn!.sourceText.length) {
+        final sourcePart1 = _currentTurn!.sourceText.substring(0, cutPos).trim();
+        final sourcePart2 = _currentTurn!.sourceText.substring(cutPos).trimLeft();
+
+        _performHardCut(
+          targetPart1: '',
+          targetPart2: '',
+          sourcePart1: sourcePart1,
+          sourcePart2: sourcePart2,
+        );
+        _scrollToBottom();
+        _scheduleAutoSegment(text);
+        return;
+      }
+    }
+
+    setState(() {});
     if (_isNativeOverlayActive) {
       WindowService.updateNativeOverlaySubtitle(
         source: _currentTurn!.sourceText,
@@ -269,14 +294,50 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTargetSpeechReceived(String text) {
-    setState(() {
-      _currentTurn ??= TranslationTurn(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        timestamp: DateTime.now(),
-        targetLanguageCode: _config.targetLanguageCode,
-      );
-      _currentTurn!.targetText += text;
-    });
+    if (text.isEmpty) return;
+
+    _currentTurn ??= TranslationTurn(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      timestamp: DateTime.now(),
+      targetLanguageCode: _config.targetLanguageCode,
+    );
+
+    _currentTurn!.targetText += text;
+
+    // 長段落自動分段（硬切割）：達到指定長度時自動切分回合，防止超長段落堆疊
+    final maxLen = _config.maxParagraphLength;
+    if (maxLen > 0) {
+      final cutPos = _findTargetCutIndex(_currentTurn!.targetText, maxLen);
+      if (cutPos != null && cutPos > 0 && cutPos < _currentTurn!.targetText.length) {
+        final targetPart1 = _currentTurn!.targetText.substring(0, cutPos).trim();
+        final targetPart2 = _currentTurn!.targetText.substring(cutPos).trimLeft();
+
+        final source = _currentTurn!.sourceText.trim();
+        String sourcePart1 = source;
+        String sourcePart2 = '';
+        if (source.isNotEmpty) {
+          final totalLen = targetPart1.length + targetPart2.length;
+          final ratio = totalLen > 0 ? (targetPart1.length / totalLen) : 1.0;
+          final srcCutPos = _findSourceCutIndex(source, ratio);
+          if (srcCutPos > 0 && srcCutPos < source.length) {
+            sourcePart1 = source.substring(0, srcCutPos).trim();
+            sourcePart2 = source.substring(srcCutPos).trimLeft();
+          }
+        }
+
+        _performHardCut(
+          targetPart1: targetPart1,
+          targetPart2: targetPart2,
+          sourcePart1: sourcePart1,
+          sourcePart2: sourcePart2,
+        );
+        _scrollToBottom();
+        _scheduleAutoSegment(text);
+        return;
+      }
+    }
+
+    setState(() {});
     if (_isNativeOverlayActive) {
       WindowService.updateNativeOverlaySubtitle(
         source: _currentTurn!.sourceText,
@@ -287,9 +348,170 @@ class _HomeScreenState extends State<HomeScreen> {
     _scheduleAutoSegment(text);
   }
 
-  /// 智慧自然語流分段機制：
-  /// 當句子包含明確句尾終止標點（。？！.?!）且停頓超過 1800ms，或語流靜音停頓超過 3500ms 無新文字時，
-  /// 才結算當前回合並沉澱為歷史記錄，避免講話中途停頓被過早截斷成碎片。
+  /// 執行段落長度硬切割：將上半段結算存入歷史記錄，下半段作為當前活躍回合繼續接收
+  void _performHardCut({
+    required String targetPart1,
+    required String targetPart2,
+    required String sourcePart1,
+    required String sourcePart2,
+  }) {
+    final finishedTurn = _currentTurn!;
+    finishedTurn.targetText = targetPart1;
+    finishedTurn.sourceText = sourcePart1;
+    finishedTurn.isFinal = true;
+
+    TranslationTurn? newTurn;
+    if (targetPart2.isNotEmpty || sourcePart2.isNotEmpty) {
+      newTurn = TranslationTurn(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        timestamp: DateTime.now(),
+        targetLanguageCode: _config.targetLanguageCode,
+      );
+      newTurn.targetText = targetPart2;
+      newTurn.sourceText = sourcePart2;
+    }
+
+    setState(() {
+      _history.insert(0, finishedTurn);
+      _currentTurn = newTurn;
+    });
+
+    if (_isNativeOverlayActive) {
+      final dispSource = (newTurn != null && newTurn.sourceText.isNotEmpty)
+          ? newTurn.sourceText
+          : finishedTurn.sourceText;
+      final dispTarget = (newTurn != null && newTurn.targetText.isNotEmpty)
+          ? newTurn.targetText
+          : finishedTurn.targetText;
+      WindowService.updateNativeOverlaySubtitle(
+        source: dispSource,
+        target: dispTarget,
+      );
+    }
+  }
+
+  /// 尋找譯文目標長度硬切割位置：
+  /// 1. 當長度達到 70% maxLen 時，尋找自然句子結尾（。！？!?\n）
+  /// 2. 當長度達到 100% maxLen 時，尋找子句停頓（，、；,;）
+  /// 3. 當長度達到 130% maxLen 時，強制硬切割（空格或指定字數）
+  int? _findTargetCutIndex(String text, int maxLen) {
+    final minScan = (maxLen * 0.7).round();
+    if (text.length < minScan) return null;
+
+    // 1. 優先在 [minScan, end] 區間尋找句尾標點
+    const primaryPunct = ['。', '！', '？', '\n', '!', '?'];
+    for (int i = text.length - 1; i >= minScan; i--) {
+      if (primaryPunct.contains(text[i])) {
+        return i + 1;
+      }
+    }
+
+    // 2. 超過 maxLen 時，尋找逗號或分號停頓
+    if (text.length >= maxLen) {
+      const secondaryPunct = ['，', '、', '；', ',', ';'];
+      final minClauseScan = (maxLen * 0.6).round();
+      for (int i = text.length - 1; i >= minClauseScan; i--) {
+        if (secondaryPunct.contains(text[i])) {
+          return i + 1;
+        }
+      }
+    }
+
+    // 3. 超過 130% maxLen 時強制硬切斷
+    if (text.length >= (maxLen * 1.3).round()) {
+      final spaceIdx = text.lastIndexOf(' ', maxLen);
+      if (spaceIdx >= (maxLen * 0.8).round()) {
+        return spaceIdx + 1;
+      }
+      return maxLen;
+    }
+
+    return null;
+  }
+
+  /// 依比例與標點符號切割原始語音句子，維持原文與譯文對齊
+  int _findSourceCutIndex(String source, double ratio) {
+    if (source.length <= 40) return source.length;
+
+    final targetPos = (source.length * ratio).round().clamp(15, source.length);
+    const terminators = ['. ', '! ', '? ', '.\n', '!\n', '?\n'];
+
+    int bestIdx = -1;
+    int minDiff = 999999;
+
+    for (final term in terminators) {
+      int idx = 0;
+      while ((idx = source.indexOf(term, idx)) != -1) {
+        final cutAt = idx + term.length;
+        final diff = (cutAt - targetPos).abs();
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestIdx = cutAt;
+        }
+        idx += term.length;
+      }
+    }
+
+    if (bestIdx != -1) return bestIdx;
+
+    // 次要逗號匹配
+    const clauseTerms = [', ', '; '];
+    for (final term in clauseTerms) {
+      int idx = 0;
+      while ((idx = source.indexOf(term, idx)) != -1) {
+        final cutAt = idx + term.length;
+        final diff = (cutAt - targetPos).abs();
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestIdx = cutAt;
+        }
+        idx += term.length;
+      }
+    }
+
+    if (bestIdx != -1) return bestIdx;
+
+    final spaceIdx = source.lastIndexOf(' ', targetPos);
+    if (spaceIdx > 15) return spaceIdx + 1;
+
+    return source.length;
+  }
+
+  /// 針對純原始語音輸入（無譯文）時的長段落硬切割
+  int? _findSourceOnlyCutIndex(String text, int maxLen) {
+    final sourceMaxLen = (maxLen * 2.4).round();
+    final minScan = (sourceMaxLen * 0.7).round();
+    if (text.length < minScan) return null;
+
+    const terminators = ['. ', '! ', '? ', '.\n', '!\n', '?\n'];
+    int bestIdx = -1;
+    for (final term in terminators) {
+      int idx = minScan;
+      while ((idx = text.indexOf(term, idx)) != -1) {
+        final cutAt = idx + term.length;
+        if (cutAt > bestIdx) {
+          bestIdx = cutAt;
+        }
+        idx += term.length;
+      }
+    }
+    if (bestIdx != -1 && bestIdx <= text.length) return bestIdx;
+
+    if (text.length >= sourceMaxLen) {
+      final spaceIdx = text.lastIndexOf(' ', sourceMaxLen);
+      if (spaceIdx >= (sourceMaxLen * 0.7).round()) {
+        return spaceIdx + 1;
+      }
+      if (text.length >= (sourceMaxLen * 1.3).round()) {
+        return sourceMaxLen;
+      }
+    }
+
+    return null;
+  }
+
+  /// 自然停頓與短句分段定時器：
+  /// 當句子包含明確句尾終止標點停頓 800ms，或短暫靜音 1800ms 無新文字時結算回合
   void _scheduleAutoSegment(String recentChunk) {
     _segmentTimer?.cancel();
 
@@ -302,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
         trimmed.endsWith('?') ||
         trimmed.endsWith('\n');
 
-    final durationMs = hasTerminalPunctuation ? 1800 : 3500;
+    final durationMs = hasTerminalPunctuation ? 800 : 1800;
 
     _segmentTimer = Timer(Duration(milliseconds: durationMs), () {
       _finalizeCurrentTurn();

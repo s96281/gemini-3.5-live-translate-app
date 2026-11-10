@@ -14,6 +14,7 @@ class LiveConfig {
   final bool echoTargetLanguage;
   final AudioSourceMode audioSourceMode;
   final String? selectedDeviceId;
+  final int maxParagraphLength;
 
   const LiveConfig({
     required this.apiKey,
@@ -24,6 +25,7 @@ class LiveConfig {
     this.echoTargetLanguage = false,
     this.audioSourceMode = AudioSourceMode.systemAudio,
     this.selectedDeviceId,
+    this.maxParagraphLength = 50,
   });
 
   LiveConfig copyWith({
@@ -35,6 +37,7 @@ class LiveConfig {
     bool? echoTargetLanguage,
     AudioSourceMode? audioSourceMode,
     String? selectedDeviceId,
+    int? maxParagraphLength,
   }) {
     return LiveConfig(
       apiKey: apiKey ?? this.apiKey,
@@ -45,6 +48,7 @@ class LiveConfig {
       echoTargetLanguage: echoTargetLanguage ?? this.echoTargetLanguage,
       audioSourceMode: audioSourceMode ?? this.audioSourceMode,
       selectedDeviceId: selectedDeviceId ?? this.selectedDeviceId,
+      maxParagraphLength: maxParagraphLength ?? this.maxParagraphLength,
     );
   }
 

@@ -42,6 +42,7 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
   late String _selectedVoice;
   late bool _autoPlayAudio;
   late AudioSourceMode _selectedSourceMode;
+  late int _maxParagraphLength;
   String? _selectedDeviceId;
   List<dynamic> _availableDevices = [];
   bool _obscureKey = true;
@@ -55,6 +56,7 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
     _autoPlayAudio = widget.currentConfig.autoPlayAudio;
     _selectedSourceMode = widget.currentConfig.audioSourceMode;
     _selectedDeviceId = widget.currentConfig.selectedDeviceId;
+    _maxParagraphLength = widget.currentConfig.maxParagraphLength;
     _loadDevices();
   }
 
@@ -85,6 +87,7 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
     await prefs.setString('gemini_voice', _selectedVoice);
     await prefs.setBool('gemini_autoplay', _autoPlayAudio);
     await prefs.setString('gemini_audio_source_mode', _selectedSourceMode.name);
+    await prefs.setInt('gemini_max_paragraph_length', _maxParagraphLength);
     if (_selectedDeviceId != null) {
       await prefs.setString('gemini_selected_device_id', _selectedDeviceId!);
     } else {
@@ -98,6 +101,7 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
       autoPlayAudio: _autoPlayAudio,
       audioSourceMode: _selectedSourceMode,
       selectedDeviceId: _selectedDeviceId,
+      maxParagraphLength: _maxParagraphLength,
     );
 
     widget.onSave(updated);
@@ -561,6 +565,31 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                 onChanged: (val) => setState(() => _autoPlayAudio = val),
               ),
 
+              const SizedBox(height: 16),
+
+              // Paragraph Hard Cut Section
+              Text(
+                '長段落自動硬切割（段落長度上限）',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSubColor),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '連續聆聽時達到指定字數強制自動分段，避免產生單一超長段落。',
+                style: TextStyle(fontSize: 11, color: textMutedColor),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildCutOptionChip(35, '35 字 (短句)', cyanPrimary, cardBg, borderColor, textColor, textSubColor),
+                  _buildCutOptionChip(50, '50 字 (推薦)', cyanPrimary, cardBg, borderColor, textColor, textSubColor),
+                  _buildCutOptionChip(75, '75 字 (中長)', cyanPrimary, cardBg, borderColor, textColor, textSubColor),
+                  _buildCutOptionChip(100, '100 字 (長段)', cyanPrimary, cardBg, borderColor, textColor, textSubColor),
+                  _buildCutOptionChip(0, '不限制 (關閉)', cyanPrimary, cardBg, borderColor, textColor, textSubColor),
+                ],
+              ),
+
               const SizedBox(height: 18),
 
               // Actions
@@ -595,6 +624,43 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
                 ],
               )
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCutOptionChip(
+    int value,
+    String label,
+    Color cyanPrimary,
+    Color cardBg,
+    Color borderColor,
+    Color textColor,
+    Color textSubColor,
+  ) {
+    final isSelected = (_maxParagraphLength == value);
+    return InkWell(
+      onTap: () {
+        setState(() => _maxParagraphLength = value);
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? cyanPrimary.withOpacity(0.18) : cardBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? cyanPrimary : borderColor,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? cyanPrimary : textSubColor,
           ),
         ),
       ),
