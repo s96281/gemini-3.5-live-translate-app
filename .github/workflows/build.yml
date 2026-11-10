@@ -2,16 +2,13 @@ name: Build Cross-Platform Apps (Windows & Android)
 
 on:
   push:
-    branches: [ main, master ]
     tags: [ 'v*' ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release Tag to upload assets to (e.g. v1.1.0)'
+        description: 'Release Tag to upload assets to (e.g. v1.2.0)'
         required: false
-        default: 'v1.1.0'
+        default: 'v1.2.0'
 
 jobs:
   # 1. 在 Windows 原生環境打包 Windows EXE
@@ -105,7 +102,7 @@ jobs:
         run: |
           TAG="${{ github.event.inputs.tag_name || github.ref_name }}"
           if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
-            TAG="v1.1.0"
+            TAG="v1.2.0"
           fi
           echo "target_tag=$TAG" >> $GITHUB_OUTPUT
           cp windows-artifact/GeminiLiveTranslate-Windows-x64.zip GeminiLiveTranslate-Windows-x64-${TAG}.zip
