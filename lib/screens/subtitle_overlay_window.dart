@@ -1,9 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:window_manager/window_manager.dart';
-import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 
 import '../services/window_service.dart';
@@ -35,62 +32,37 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
   bool _isFinal = false;
   String _targetLangCode = 'zh-TW';
 
+  // Window Geometry State
+  double _posX = 240.0;
+  double _posY = 680.0;
+  double _width = 880.0;
+  double _height = 160.0;
+
   // Window State
   bool _isClickThrough = false;
   double _fontSize = 22.0;
 
-  // Global Hotkey for unlocking click-through mode: Ctrl + F8
-  final HotKey _toggleLockHotKey = HotKey(
-    key: PhysicalKeyboardKey.f8,
-    modifiers: [HotKeyModifier.control],
-    scope: HotKeyScope.system, // System-wide, active even when unfocused
-  );
-
   @override
   void initState() {
     super.initState();
-    _initWindow();
-    _initHotKeys();
-    _setupIpcListener();
-
     if (widget.initialArguments.isNotEmpty) {
       _sourceText = widget.initialArguments['sourceText'] ?? _sourceText;
       _translatedText = widget.initialArguments['translatedText'] ?? _translatedText;
       _targetLangCode = widget.initialArguments['targetLangCode'] ?? _targetLangCode;
-    }
-  }
-
-  Future<void> _initWindow() async {
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      try {
-        await WindowService.configureSubwindowAsOverlay();
-      } catch (e) {
-        debugPrint('[SubtitleOverlayWindow] configureSubwindowAsOverlay error: $e');
+      if (widget.initialArguments.containsKey('left')) {
+        _posX = (widget.initialArguments['left'] as num).toDouble();
       }
-      try {
-        await windowManager.ensureInitialized();
-        await windowManager.setAsFrameless();
-        await windowManager.setBackgroundColor(Colors.transparent);
-        await windowManager.setAlwaysOnTop(true);
-        await windowManager.setResizable(true);
-      } catch (e) {
-        debugPrint('[SubtitleOverlayWindow] window_manager init error: $e');
+      if (widget.initialArguments.containsKey('top')) {
+        _posY = (widget.initialArguments['top'] as num).toDouble();
+      }
+      if (widget.initialArguments.containsKey('width')) {
+        _width = (widget.initialArguments['width'] as num).toDouble();
+      }
+      if (widget.initialArguments.containsKey('height')) {
+        _height = (widget.initialArguments['height'] as num).toDouble();
       }
     }
-  }
-
-  Future<void> _initHotKeys() async {
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      try {
-        await hotKeyManager.unregisterAll();
-        await hotKeyManager.register(
-          _toggleLockHotKey,
-          keyDownHandler: (hotKey) => _toggleClickThrough(),
-        );
-      } catch (e) {
-        debugPrint('[SubtitleOverlayWindow] hotkey register error: $e');
-      }
-    }
+    _setupIpcListener();
   }
 
   /// Toggles mouse events pass-through (Click-through mode).
@@ -100,23 +72,14 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
       _isClickThrough = nextState;
     });
 
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      // 1. Direct native Win32 subwindow style update
-      await WindowService.setSubwindowIgnoreMouseEvents(nextState);
-
-      // 2. window_manager fallback if available
-      try {
-        await windowManager.setIgnoreMouseEvents(nextState, forward: false);
-      } catch (_) {}
-
-      // 3. Notify the main window of the lock state change via IPC
-      try {
-        await DesktopMultiWindow.invokeMethod(
-          0, // Main window ID
-          'onSubtitleLockChanged',
-          nextState,
-        );
-      } catch (_) {}
+    try {
+      await DesktopMultiWindow.invokeMethod(
+        0, // Main window ID
+        'setSubwindowIgnoreMouseEvents',
+        nextState,
+      );
+    } catch (e) {
+      debugPrint('[SubtitleOverlayWindow] IPC setSubwindowIgnoreMouseEvents error: $e');
     }
   }
 
@@ -142,20 +105,24 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
           return true;
         } else if (call.method == 'setClickThrough') {
           final bool enable = call.arguments as bool;
-          if (_isClickThrough != enable) {
-            _toggleClickThrough();
+          if (mounted && _isClickThrough != enable) {
+            setState(() {
+              _isClickThrough = enable;
+            });
           }
           return true;
         } else if (call.method == 'setFontSize') {
           final double size = (call.arguments as num).toDouble();
-          setState(() {
-            _fontSize = size;
-          });
+          if (mounted) {
+            setState(() {
+              _fontSize = size;
+            });
+          }
           return true;
         } else if (call.method == 'closeSubtitleWindow') {
-          if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-            await windowManager.close();
-          }
+          try {
+            await WindowController.fromWindowId(widget.windowId).close();
+          } catch (_) {}
           return true;
         }
         return null;
@@ -167,9 +134,6 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
 
   @override
   void dispose() {
-    try {
-      hotKeyManager.unregister(_toggleLockHotKey);
-    } catch (_) {}
     super.dispose();
   }
 
@@ -180,9 +144,21 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
       backgroundColor: Colors.transparent,
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onPanStart: (_) => WindowService.startDraggingSubwindow(),
-        child: DragToMoveArea(
-          child: Container(
+        onPanStart: (_) {
+          try {
+            DesktopMultiWindow.invokeMethod(0, 'startDraggingSubwindow');
+          } catch (_) {}
+        },
+        onPanUpdate: (details) {
+          _posX += details.delta.dx;
+          _posY += details.delta.dy;
+          try {
+            WindowController.fromWindowId(widget.windowId).setFrame(
+              Offset(_posX, _posY) & Size(_width, _height),
+            );
+          } catch (_) {}
+        },
+        child: Container(
           width: double.infinity,
           height: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -235,7 +211,6 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
           ),
         ),
       ),
-    ),
     );
   }
 
@@ -294,11 +269,11 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
           constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
           onPressed: () async {
             try {
-              await DesktopMultiWindow.invokeMethod(0, 'onSubtitleWindowClosed');
+              await WindowController.fromWindowId(widget.windowId).close();
             } catch (_) {}
-            if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-              await windowManager.close();
-            }
+            try {
+              await DesktopMultiWindow.invokeMethod(0, 'closeSubtitleWindow');
+            } catch (_) {}
           },
         ),
       ],

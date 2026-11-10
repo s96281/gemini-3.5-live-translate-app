@@ -107,7 +107,11 @@ std::vector<HWND> GetSubwindows(HWND main_hwnd) {
     GetWindowThreadProcessId(hwnd, &pid);
     if (pid == GetCurrentProcessId()) {
       if (GetParent(hwnd) == nullptr) {
-        p_subwindows->push_back(hwnd);
+        wchar_t class_name[256] = {0};
+        GetClassNameW(hwnd, class_name, 256);
+        if (wcscmp(class_name, L"FLUTTER_RUNNER_WIN32_WINDOW") == 0) {
+          p_subwindows->push_back(hwnd);
+        }
       }
     }
     return TRUE;
@@ -330,6 +334,8 @@ void FlutterWindow::SetupWindowChannels() {
           } else {
             SetWindowLongPtr(hwnd, GWL_EXSTYLE, ex_style & ~WS_EX_TRANSPARENT);
           }
+          SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                       SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
           result->Success(flutter::EncodableValue(true));
         } else if (call.method_name() == "startDragging") {
           ReleaseCapture();
@@ -368,6 +374,8 @@ void FlutterWindow::SetupWindowChannels() {
             } else {
               SetWindowLongPtr(sub, GWL_EXSTYLE, ex_style & ~WS_EX_TRANSPARENT);
             }
+            SetWindowPos(sub, nullptr, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
           }
           result->Success(flutter::EncodableValue(true));
         } else if (call.method_name() == "startDraggingSubwindow") {
@@ -376,6 +384,12 @@ void FlutterWindow::SetupWindowChannels() {
             ReleaseCapture();
             SendMessage(sub, WM_NCLBUTTONDOWN, HTCAPTION, 0);
             break;
+          }
+          result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "closeSubwindow") {
+          auto subwindows = GetSubwindows(hwnd);
+          for (HWND sub : subwindows) {
+            PostMessage(sub, WM_CLOSE, 0, 0);
           }
           result->Success(flutter::EncodableValue(true));
         } else {

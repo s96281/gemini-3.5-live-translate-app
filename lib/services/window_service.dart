@@ -102,4 +102,15 @@ class WindowService {
       return false;
     }
   }
+
+  /// Closes secondary subwindows via native Win32 WM_CLOSE.
+  static Future<bool> closeSubwindow() async {
+    if (!Platform.isWindows) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('closeSubwindow');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 }
