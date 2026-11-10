@@ -244,15 +244,15 @@ LRESULT CALLBACK NativeSubtitleOverlay::WndProc(HWND hwnd, UINT msg, WPARAM wPar
       GetCursorPos(&ptScreen);
 
       HMENU hMenu = CreatePopupMenu();
-      AppendMenuW(hMenu, MF_STRING, 201, L"🔒 鎖定並開啟滑鼠穿透 (Ctrl+F8)");
+      AppendMenuW(hMenu, MF_STRING, 201, L"鎖定並開啟滑鼠穿透 (Ctrl+F8)");
       AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
-      AppendMenuW(hMenu, MF_STRING, 202, L"🔍 放大字幕字體 (A+)");
-      AppendMenuW(hMenu, MF_STRING, 203, L"🔎 縮小字幕字體 (A-)");
+      AppendMenuW(hMenu, MF_STRING, 202, L"放大字幕字體 (A+)");
+      AppendMenuW(hMenu, MF_STRING, 203, L"縮小字幕字體 (A-)");
       AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
-      AppendMenuW(hMenu, MF_STRING, 204, L"🎨 切換背景透明度 (純透/半透/深色)");
-      AppendMenuW(hMenu, MF_STRING, 205, L"📍 重設至螢幕底部置中");
+      AppendMenuW(hMenu, MF_STRING, 204, L"切換背景底色 (純透 / 半透 / 深色)");
+      AppendMenuW(hMenu, MF_STRING, 205, L"重設位置至螢幕底部置中");
       AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
-      AppendMenuW(hMenu, MF_STRING, 206, L"✕ 關閉桌面懸浮字幕");
+      AppendMenuW(hMenu, MF_STRING, 206, L"關閉桌面懸浮字幕");
 
       SetForegroundWindow(hwnd);
       int cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_NONOTIFY, ptScreen.x, ptScreen.y, 0, hwnd, nullptr);
@@ -343,58 +343,57 @@ void NativeSubtitleOverlay::Render() {
     g.DrawString(L"● 懸浮字幕", -1, &badgeFont, badgeRect, &centerFormat, &badgeText);
 
     // Top-Right Interactive Buttons
-    Gdiplus::Font btnFont(fontFamily.get(), 9.5f, FontStyleBold, UnitPoint);
+    Gdiplus::Font btnFont(fontFamily.get(), 9.0f, FontStyleBold, UnitPoint);
     SolidBrush btnBg(Color(160, 30, 41, 59));
     SolidBrush btnText(Color(240, 255, 255, 255));
     SolidBrush cyanText(Color(255, 0, 229, 255));
 
-    // Calculate button hit rects
-    int rightX = width_ - 30;
+    int rightX = width_ - 24;
 
     // Close Button [✕]
-    close_btn_rect_ = { rightX - 26, 8, rightX, 32 };
-    RectF closeRect(static_cast<REAL>(close_btn_rect_.left), static_cast<REAL>(close_btn_rect_.top), 26.0f, 24.0f);
+    close_btn_rect_ = { rightX - 28, 8, rightX, 32 };
+    RectF closeRect(static_cast<REAL>(close_btn_rect_.left), static_cast<REAL>(close_btn_rect_.top), 28.0f, 24.0f);
     GraphicsPath closePath;
     AddRoundedRectangle(closePath, closeRect, 6.0f);
     SolidBrush closeBg(Color(180, 239, 68, 68)); // red-500
     g.FillPath(&closeBg, &closePath);
     g.DrawString(L"✕", -1, &btnFont, closeRect, &centerFormat, &badgeText);
 
-    rightX -= 34;
+    rightX -= (28 + 8);
 
-    // Lock/Click-Through Button [🔒]
-    lock_btn_rect_ = { rightX - 30, 8, rightX, 32 };
-    RectF lockRect(static_cast<REAL>(lock_btn_rect_.left), static_cast<REAL>(lock_btn_rect_.top), 30.0f, 24.0f);
+    // Lock/Click-Through Button [穿透]
+    lock_btn_rect_ = { rightX - 46, 8, rightX, 32 };
+    RectF lockRect(static_cast<REAL>(lock_btn_rect_.left), static_cast<REAL>(lock_btn_rect_.top), 46.0f, 24.0f);
     GraphicsPath lockPath;
     AddRoundedRectangle(lockPath, lockRect, 6.0f);
     g.FillPath(&btnBg, &lockPath);
-    g.DrawString(L"🔒", -1, &btnFont, lockRect, &centerFormat, &cyanText);
+    g.DrawString(L"穿透", -1, &btnFont, lockRect, &centerFormat, &cyanText);
 
-    rightX -= 38;
+    rightX -= (46 + 8);
 
-    // Background toggle button [🎨]
-    bg_toggle_btn_rect_ = { rightX - 30, 8, rightX, 32 };
-    RectF bgBtnRect(static_cast<REAL>(bg_toggle_btn_rect_.left), static_cast<REAL>(bg_toggle_btn_rect_.top), 30.0f, 24.0f);
+    // Background toggle button [背景]
+    bg_toggle_btn_rect_ = { rightX - 46, 8, rightX, 32 };
+    RectF bgBtnRect(static_cast<REAL>(bg_toggle_btn_rect_.left), static_cast<REAL>(bg_toggle_btn_rect_.top), 46.0f, 24.0f);
     GraphicsPath bgBtnPath;
     AddRoundedRectangle(bgBtnPath, bgBtnRect, 6.0f);
     g.FillPath(&btnBg, &bgBtnPath);
-    g.DrawString(L"🎨", -1, &btnFont, bgBtnRect, &centerFormat, &btnText);
+    g.DrawString(L"背景", -1, &btnFont, bgBtnRect, &centerFormat, &btnText);
 
-    rightX -= 38;
+    rightX -= (46 + 8);
 
     // Font Plus [A+]
-    font_plus_btn_rect_ = { rightX - 30, 8, rightX, 32 };
-    RectF plusRect(static_cast<REAL>(font_plus_btn_rect_.left), static_cast<REAL>(font_plus_btn_rect_.top), 30.0f, 24.0f);
+    font_plus_btn_rect_ = { rightX - 32, 8, rightX, 32 };
+    RectF plusRect(static_cast<REAL>(font_plus_btn_rect_.left), static_cast<REAL>(font_plus_btn_rect_.top), 32.0f, 24.0f);
     GraphicsPath plusPath;
     AddRoundedRectangle(plusPath, plusRect, 6.0f);
     g.FillPath(&btnBg, &plusPath);
     g.DrawString(L"A+", -1, &btnFont, plusRect, &centerFormat, &btnText);
 
-    rightX -= 36;
+    rightX -= (32 + 6);
 
     // Font Minus [A-]
-    font_minus_btn_rect_ = { rightX - 30, 8, rightX, 32 };
-    RectF minusRect(static_cast<REAL>(font_minus_btn_rect_.left), static_cast<REAL>(font_minus_btn_rect_.top), 30.0f, 24.0f);
+    font_minus_btn_rect_ = { rightX - 32, 8, rightX, 32 };
+    RectF minusRect(static_cast<REAL>(font_minus_btn_rect_.left), static_cast<REAL>(font_minus_btn_rect_.top), 32.0f, 24.0f);
     GraphicsPath minusPath;
     AddRoundedRectangle(minusPath, minusRect, 6.0f);
     g.FillPath(&btnBg, &minusPath);
@@ -413,43 +412,60 @@ void NativeSubtitleOverlay::Render() {
     rightFormat.SetLineAlignment(StringAlignmentCenter);
     RectF hintRect(static_cast<REAL>(width_ - 260), 10.0f, 230.0f, 20.0f);
     SolidBrush hintBrush(Color(200, 0, 229, 255));
-    g.DrawString(L"🔒 已穿透滑鼠 · 按 Ctrl+F8 解鎖", -1, &hintFont, hintRect, &rightFormat, &hintBrush);
+    g.DrawString(L"已穿透滑鼠 · 按 Ctrl+F8 解鎖", -1, &hintFont, hintRect, &rightFormat, &hintBrush);
   }
 
   // 5. Subtitle Text Rendering
   StringFormat textFormat;
   textFormat.SetAlignment(StringAlignmentCenter);
   textFormat.SetLineAlignment(StringAlignmentCenter);
-  textFormat.SetTrimming(StringTrimmingEllipsisCharacter);
+  textFormat.SetTrimming(StringTrimmingWord);
+
+  bool hasTarget = !target_text_.empty();
+  bool hasSource = !source_text_.empty();
 
   // Target Text (Primary translation)
-  std::wstring dispTarget = target_text_.empty()
-      ? L"即時口譯桌面懸浮字幕已就緒，請開始說話..."
-      : target_text_;
+  if (hasTarget) {
+    float effFontSize = static_cast<float>(font_size_);
+    if (target_text_.length() > 70) {
+      effFontSize = (std::max)(15.0f, effFontSize * 0.75f);
+    } else if (target_text_.length() > 45) {
+      effFontSize = (std::max)(17.0f, effFontSize * 0.85f);
+    }
 
-  RectF targetRect(24.0f, 36.0f, static_cast<REAL>(width_ - 48), 65.0f);
-  GraphicsPath targetPath;
-  targetPath.AddString(
-      dispTarget.c_str(), -1, fontFamily.get(),
-      FontStyleBold, static_cast<REAL>(font_size_),
-      targetRect, &textFormat);
+    REAL targetY = hasSource ? 35.0f : 40.0f;
+    REAL targetHeight = hasSource ? 68.0f : 105.0f;
+    RectF targetRect(24.0f, targetY, static_cast<REAL>(width_ - 48), targetHeight);
+    GraphicsPath targetPath;
+    targetPath.AddString(
+        target_text_.c_str(), -1, fontFamily.get(),
+        FontStyleBold, effFontSize,
+        targetRect, &textFormat);
 
-  // Black outer stroke (4.5px thick, round join)
-  Pen targetStroke(Color(255, 0, 0, 0), 4.5f);
-  targetStroke.SetLineJoin(LineJoinRound);
-  g.DrawPath(&targetStroke, &targetPath);
+    // Black outer stroke (4.5px thick, round join)
+    Pen targetStroke(Color(255, 0, 0, 0), 4.5f);
+    targetStroke.SetLineJoin(LineJoinRound);
+    g.DrawPath(&targetStroke, &targetPath);
 
-  // Neon Cyan fill
-  SolidBrush targetFill(Color(255, 0, 229, 255)); // #00E5FF
-  g.FillPath(&targetFill, &targetPath);
+    // Neon Cyan fill
+    SolidBrush targetFill(Color(255, 0, 229, 255)); // #00E5FF
+    g.FillPath(&targetFill, &targetPath);
+  }
 
   // Source Text (Original speech)
-  if (!source_text_.empty()) {
-    RectF sourceRect(24.0f, 102.0f, static_cast<REAL>(width_ - 48), 44.0f);
+  if (hasSource) {
+    float effSrcFontSize = static_cast<float>(font_size_ * 0.68f);
+    if (source_text_.length() > 70) {
+      effSrcFontSize = (std::max)(12.0f, effSrcFontSize * 0.78f);
+    }
+
+    REAL srcY = hasTarget ? 104.0f : 55.0f;
+    REAL srcHeight = hasTarget ? 46.0f : 85.0f;
+    RectF sourceRect(24.0f, srcY, static_cast<REAL>(width_ - 48), srcHeight);
     GraphicsPath sourcePath;
     sourcePath.AddString(
         source_text_.c_str(), -1, fontFamily.get(),
-        FontStyleRegular, static_cast<REAL>(font_size_ * 0.68f),
+        FontStyleRegular, effSrcFontSize,
         sourceRect, &textFormat);
 
     Pen sourceStroke(Color(240, 0, 0, 0), 3.0f);

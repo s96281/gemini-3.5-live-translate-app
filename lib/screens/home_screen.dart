@@ -287,14 +287,14 @@ class _HomeScreenState extends State<HomeScreen> {
     _scheduleAutoSegment(text);
   }
 
-  /// 智慧自動分段機制：
-  /// 當句子包含標點符號停頓（。？！.?!）超過 800ms，或語流停頓超過 1800ms 無新文字，
-  /// 自動結算當前回合並沉澱為歷史記錄，開啟新卡片。
+  /// 智慧自然語流分段機制：
+  /// 當句子包含明確句尾終止標點（。？！.?!）且停頓超過 1800ms，或語流靜音停頓超過 3500ms 無新文字時，
+  /// 才結算當前回合並沉澱為歷史記錄，避免講話中途停頓被過早截斷成碎片。
   void _scheduleAutoSegment(String recentChunk) {
     _segmentTimer?.cancel();
 
     final trimmed = recentChunk.trimRight();
-    final bool hasPunctuation = trimmed.endsWith('。') ||
+    final bool hasTerminalPunctuation = trimmed.endsWith('。') ||
         trimmed.endsWith('！') ||
         trimmed.endsWith('？') ||
         trimmed.endsWith('.') ||
@@ -302,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
         trimmed.endsWith('?') ||
         trimmed.endsWith('\n');
 
-    final durationMs = hasPunctuation ? 800 : 1800;
+    final durationMs = hasTerminalPunctuation ? 1800 : 3500;
 
     _segmentTimer = Timer(Duration(milliseconds: durationMs), () {
       _finalizeCurrentTurn();
