@@ -1,4 +1,4 @@
-#include "flutter_window.h"
+﻿#include "flutter_window.h"
 
 #include <optional>
 #include <vector>
@@ -13,9 +13,11 @@ namespace {
 
 std::wstring Utf8ToUtf16(const std::string& utf8) {
   if (utf8.empty()) return std::wstring();
-  int size_needed = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), static_cast<int>(utf8.size()), nullptr, 0);
+  int size_needed = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0);
+  if (size_needed <= 1) return std::wstring();
   std::wstring utf16(size_needed, 0);
-  MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), static_cast<int>(utf8.size()), &utf16[0], size_needed);
+  MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, &utf16[0], size_needed);
+  utf16.pop_back();
   return utf16;
 }
 

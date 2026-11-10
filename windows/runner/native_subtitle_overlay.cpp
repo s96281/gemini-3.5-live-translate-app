@@ -1,4 +1,4 @@
-#include "native_subtitle_overlay.h"
+﻿#include "native_subtitle_overlay.h"
 #include <gdiplus.h>
 #include <algorithm>
 #include <memory>
