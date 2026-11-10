@@ -67,4 +67,39 @@ class WindowService {
       return false;
     }
   }
+
+  /// Configures any created secondary subwindows as frameless, DWM transparent, and topmost overlay.
+  static Future<bool> configureSubwindowAsOverlay() async {
+    if (!Platform.isWindows) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('configureSubwindowAsOverlay');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Sets mouse click-through on secondary subwindows.
+  static Future<bool> setSubwindowIgnoreMouseEvents(bool ignore) async {
+    if (!Platform.isWindows) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('setSubwindowIgnoreMouseEvents', {
+        'ignore': ignore,
+      });
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Native drag for secondary subwindows.
+  static Future<bool> startDraggingSubwindow() async {
+    if (!Platform.isWindows) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('startDraggingSubwindow');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 }

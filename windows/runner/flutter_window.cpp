@@ -1,9 +1,128 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <vector>
+#include <dwmapi.h>
 #include <flutter/event_stream_handler_functions.h>
 
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+
+typedef enum _ACCENT_STATE {
+  ACCENT_DISABLED = 0,
+  ACCENT_ENABLE_GRADIENT = 1,
+  ACCENT_ENABLE_TRANSPARENTGRADIENT = 2,
+  ACCENT_ENABLE_BLURBEHIND = 3,
+  ACCENT_ENABLE_ACRYLICBLURBEHIND = 4,
+  ACCENT_INVALID_STATE = 5
+} ACCENT_STATE;
+
+typedef struct _ACCENT_POLICY {
+  ACCENT_STATE AccentState;
+  DWORD AccentFlags;
+  COLORREF GradientColor;
+  DWORD AnimationId;
+} ACCENT_POLICY;
+
+typedef enum _WINDOWCOMPOSITIONATTRIB {
+  WCA_UNDEFINED = 0,
+  WCA_NCRENDERING_ENABLED = 1,
+  WCA_NCRENDERING_POLICY = 2,
+  WCA_TRANSITIONS_FORCEDISABLED = 3,
+  WCA_ALLOW_NCPAINT = 4,
+  WCA_CAPTION_BUTTON_BOUNDS = 5,
+  WCA_NONCLIENT_RTL_LAYOUT = 6,
+  WCA_FORCE_ICONIC_REPRESENTATION = 7,
+  WCA_EXTENDED_FRAME_BOUNDS = 8,
+  WCA_HAS_ICONIC_BITMAP = 9,
+  WCA_THEME_ATTRIBUTES = 10,
+  WCA_NOCACHE = 11,
+  WCA_EXCLUDED_FROM_LIVEPREVIEW = 12,
+  WCA_VIDEO_OVERLAY_ACTIVE = 13,
+  WCA_FORCE_ACTIVEWINDOW_APPEARANCE = 14,
+  WCA_DISALLOW_PEEK = 15,
+  WCA_CLOAK = 16,
+  WCA_CLOAKED = 17,
+  WCA_ACCENT_POLICY = 19,
+  WCA_FREEZE_REPRESENTATION = 20,
+  WCA_EVER_UNCLOAKED = 21,
+  WCA_VISUAL_OWNER = 22,
+  WCA_HOLOGRAPHIC = 23,
+  WCA_EXCLUDED_FROM_DDA = 24,
+  WCA_PASSIVEUPDATEMODE = 25,
+  WCA_USEDARKMODECOLORS = 26,
+  WCA_CORNER_STYLE = 27,
+  WCA_PART_COLOR = 28,
+  WCA_DISABLE_MOVESIZE_FEEDBACK = 29,
+  WCA_LAST = 30
+} WINDOWCOMPOSITIONATTRIB;
+
+typedef struct _WINDOWCOMPOSITIONATTRIBDATA {
+  WINDOWCOMPOSITIONATTRIB Attrib;
+  PVOID pvData;
+  SIZE_T cbData;
+} WINDOWCOMPOSITIONATTRIBDATA;
+
+typedef BOOL (WINAPI *pfnSetWindowCompositionAttribute)(HWND, WINDOWCOMPOSITIONATTRIBDATA*);
+
+void SetWindowTransparency(HWND hwnd, bool enable) {
+  HMODULE user32 = GetModuleHandleW(L"user32.dll");
+  if (user32) {
+    auto setWindowCompositionAttribute =
+        reinterpret_cast<pfnSetWindowCompositionAttribute>(
+            GetProcAddress(user32, "SetWindowCompositionAttribute"));
+    if (setWindowCompositionAttribute) {
+      ACCENT_POLICY policy = {};
+      if (enable) {
+        policy.AccentState = ACCENT_ENABLE_TRANSPARENTGRADIENT;
+        policy.AccentFlags = 2;
+        policy.GradientColor = 0x00000000;
+      } else {
+        policy.AccentState = ACCENT_DISABLED;
+      }
+      WINDOWCOMPOSITIONATTRIBDATA data = {
+          WCA_ACCENT_POLICY,
+          &policy,
+          sizeof(policy)
+      };
+      setWindowCompositionAttribute(hwnd, &data);
+    }
+  }
+
+  MARGINS margins;
+  if (enable) {
+    margins = {-1, -1, -1, -1};
+  } else {
+    margins = {0, 0, 0, 0};
+  }
+  DwmExtendFrameIntoClientArea(hwnd, &margins);
+}
+
+std::vector<HWND> GetSubwindows(HWND main_hwnd) {
+  std::vector<HWND> subwindows;
+  EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
+    auto* p_subwindows = reinterpret_cast<std::vector<HWND>*>(lParam);
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid == GetCurrentProcessId()) {
+      if (GetParent(hwnd) == nullptr) {
+        p_subwindows->push_back(hwnd);
+      }
+    }
+    return TRUE;
+  }, reinterpret_cast<LPARAM>(&subwindows));
+
+  std::vector<HWND> result;
+  for (HWND h : subwindows) {
+    if (h != main_hwnd) {
+      result.push_back(h);
+    }
+  }
+  return result;
+}
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -131,11 +250,14 @@ void FlutterWindow::SetupWindowChannels() {
         }
 
         if (call.method_name() == "enterMiniOverlay") {
-          // 記住原本視窗座標與尺寸
+          // 記住原本視窗座標與尺寸與樣式
           RECT rect;
           GetWindowRect(hwnd, &rect);
           if (rect.right - rect.left > 250 && rect.bottom - rect.top > 250) {
             normal_rect_ = rect;
+          }
+          if (normal_style_ == 0) {
+            normal_style_ = GetWindowLongPtr(hwnd, GWL_STYLE);
           }
 
           int mini_width = 520;
@@ -149,10 +271,28 @@ void FlutterWindow::SetupWindowChannels() {
             }
           }
 
-          // 置頂並縮小至懸浮條尺寸
-          SetWindowPos(hwnd, HWND_TOPMOST, rect.left, rect.top, mini_width, mini_height, SWP_SHOWWINDOW);
+          // 移除標準標題列與邊框，切換為無邊框 POPUP 懸浮視窗
+          LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
+          style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
+          style |= WS_POPUP;
+          SetWindowLongPtr(hwnd, GWL_STYLE, style);
+
+          // 啟用 DWM 全透明背景
+          SetWindowTransparency(hwnd, true);
+
+          // 置頂並縮小至懸浮條尺寸，通知 Windows 樣式變更 (SWP_FRAMECHANGED)
+          SetWindowPos(hwnd, HWND_TOPMOST, rect.left, rect.top, mini_width, mini_height,
+                       SWP_FRAMECHANGED | SWP_SHOWWINDOW);
           result->Success(flutter::EncodableValue(true));
         } else if (call.method_name() == "exitMiniOverlay") {
+          // 關閉 DWM 全透明背景
+          SetWindowTransparency(hwnd, false);
+
+          // 還原原本標準視窗樣式 (含標題列與邊框)
+          LONG_PTR style = (normal_style_ != 0) ? normal_style_ : (WS_OVERLAPPEDWINDOW | WS_VISIBLE);
+          style &= ~WS_POPUP;
+          SetWindowLongPtr(hwnd, GWL_STYLE, style);
+
           int w = normal_rect_.right - normal_rect_.left;
           int h = normal_rect_.bottom - normal_rect_.top;
           if (w < 300 || h < 400) {
@@ -162,7 +302,8 @@ void FlutterWindow::SetupWindowChannels() {
           int x = normal_rect_.left;
           int y = normal_rect_.top;
           // 取消置頂並恢復主視窗尺寸
-          SetWindowPos(hwnd, HWND_NOTOPMOST, x, y, w, h, SWP_SHOWWINDOW);
+          SetWindowPos(hwnd, HWND_NOTOPMOST, x, y, w, h,
+                       SWP_FRAMECHANGED | SWP_SHOWWINDOW);
           result->Success(flutter::EncodableValue(true));
         } else if (call.method_name() == "setAlwaysOnTop") {
           bool on_top = false;
@@ -185,7 +326,7 @@ void FlutterWindow::SetupWindowChannels() {
           }
           LONG_PTR ex_style = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
           if (ignore) {
-            SetWindowLongPtr(hwnd, GWL_EXSTYLE, ex_style | WS_EX_TRANSPARENT);
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE, ex_style | WS_EX_TRANSPARENT | WS_EX_LAYERED);
           } else {
             SetWindowLongPtr(hwnd, GWL_EXSTYLE, ex_style & ~WS_EX_TRANSPARENT);
           }
@@ -193,6 +334,49 @@ void FlutterWindow::SetupWindowChannels() {
         } else if (call.method_name() == "startDragging") {
           ReleaseCapture();
           SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+          result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "configureSubwindowAsOverlay") {
+          auto subwindows = GetSubwindows(hwnd);
+          for (HWND sub : subwindows) {
+            // 移除標準邊框與標題列，設置 POPUP 樣式
+            LONG_PTR style = GetWindowLongPtr(sub, GWL_STYLE);
+            style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
+            style |= WS_POPUP;
+            SetWindowLongPtr(sub, GWL_STYLE, style);
+
+            // 啟用 DWM 全透明背景
+            SetWindowTransparency(sub, true);
+
+            // 置頂並更新畫面
+            SetWindowPos(sub, HWND_TOPMOST, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+          }
+          result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "setSubwindowIgnoreMouseEvents") {
+          bool ignore = false;
+          if (call.arguments()) {
+            if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
+              auto it = args->find(flutter::EncodableValue("ignore"));
+              if (it != args->end()) ignore = std::get<bool>(it->second);
+            }
+          }
+          auto subwindows = GetSubwindows(hwnd);
+          for (HWND sub : subwindows) {
+            LONG_PTR ex_style = GetWindowLongPtr(sub, GWL_EXSTYLE);
+            if (ignore) {
+              SetWindowLongPtr(sub, GWL_EXSTYLE, ex_style | WS_EX_TRANSPARENT | WS_EX_LAYERED);
+            } else {
+              SetWindowLongPtr(sub, GWL_EXSTYLE, ex_style & ~WS_EX_TRANSPARENT);
+            }
+          }
+          result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "startDraggingSubwindow") {
+          auto subwindows = GetSubwindows(hwnd);
+          for (HWND sub : subwindows) {
+            ReleaseCapture();
+            SendMessage(sub, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+            break;
+          }
           result->Success(flutter::EncodableValue(true));
         } else {
           result->NotImplemented();

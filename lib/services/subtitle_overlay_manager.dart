@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'window_service.dart';
 
 /// Service managing the lifecycle and IPC streaming communication
 /// between the Primary Application Window and the Floating Subtitle Window.
@@ -78,6 +79,12 @@ class SubtitleOverlayManager {
         ..setFrame(const Offset(320, 720) & const Size(880, 160))
         ..center()
         ..show();
+
+      // Configure Win32 styles: remove standard borders/titlebar, apply DWM full transparency, set always-on-top
+      await WindowService.configureSubwindowAsOverlay();
+      Future.delayed(const Duration(milliseconds: 150), () {
+        WindowService.configureSubwindowAsOverlay();
+      });
 
       debugPrint('[SubtitleOverlayManager] Subtitle window launched (id: $_subtitleWindowId)');
       return true;

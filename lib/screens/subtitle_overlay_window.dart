@@ -63,6 +63,11 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
   Future<void> _initWindow() async {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       try {
+        await WindowService.configureSubwindowAsOverlay();
+      } catch (e) {
+        debugPrint('[SubtitleOverlayWindow] configureSubwindowAsOverlay error: $e');
+      }
+      try {
         await windowManager.ensureInitialized();
         await windowManager.setAsFrameless();
         await windowManager.setBackgroundColor(Colors.transparent);
@@ -96,15 +101,15 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
     });
 
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      try {
-        // Use window_manager to ignore mouse events
-        await windowManager.setIgnoreMouseEvents(nextState, forward: false);
-      } catch (_) {
-        // Fallback to native Win32 window service channel
-        await WindowService.setIgnoreMouseEvents(nextState);
-      }
+      // 1. Direct native Win32 subwindow style update
+      await WindowService.setSubwindowIgnoreMouseEvents(nextState);
 
-      // Notify the main window of the lock state change via IPC
+      // 2. window_manager fallback if available
+      try {
+        await windowManager.setIgnoreMouseEvents(nextState, forward: false);
+      } catch (_) {}
+
+      // 3. Notify the main window of the lock state change via IPC
       try {
         await DesktopMultiWindow.invokeMethod(
           0, // Main window ID
@@ -173,8 +178,11 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
     // Top-level must have transparent background for Windows DWM composition
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: DragToMoveArea(
-        child: Container(
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onPanStart: (_) => WindowService.startDraggingSubwindow(),
+        child: DragToMoveArea(
+          child: Container(
           width: double.infinity,
           height: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -227,6 +235,7 @@ class _SubtitleOverlayWindowState extends State<SubtitleOverlayWindow> {
           ),
         ),
       ),
+    ),
     );
   }
 

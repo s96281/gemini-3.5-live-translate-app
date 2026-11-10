@@ -47,6 +47,7 @@ class GeminiLiveTranslateApp extends StatelessWidget {
         return MaterialApp(
           title: 'Gemini 3.5 Live Translate',
           debugShowCheckedModeBanner: false,
+          color: Colors.transparent,
           themeMode: currentMode,
           theme: AppThemes.lightTheme,
           darkTheme: AppThemes.darkTheme,
