@@ -1,6 +1,7 @@
 #include "native_subtitle_overlay.h"
 #include <gdiplus.h>
 #include <algorithm>
+#include <memory>
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "msimg32.lib")
@@ -300,28 +301,35 @@ void NativeSubtitleOverlay::Render() {
     RectF rect(4.0f, 4.0f, static_cast<REAL>(width_ - 8), static_cast<REAL>(height_ - 8));
     AddRoundedRectangle(bgPath, rect, 20.0f);
 
-    SolidBrush bgBrush(Color(alpha, 15, 23, 42)); // #0F172A slate
+    BYTE bAlpha = static_cast<BYTE>(alpha);
+    BYTE bBorder = static_cast<BYTE>((std::min)(255, alpha + 50));
+
+    SolidBrush bgBrush(Color(bAlpha, 15, 23, 42)); // #0F172A slate
     g.FillPath(&bgBrush, &bgPath);
 
-    Pen borderPen(Color((std::min)(255, alpha + 50), 71, 85, 105), 1.0f);
+    Pen borderPen(Color(bBorder, 71, 85, 105), 1.0f);
     g.DrawPath(&borderPen, &bgPath);
   }
 
   // 3. Fonts
-  FontFamily fontFamily(L"Microsoft JhengHei");
-  if (fontFamily.GetLastStatus() != Ok) {
-    FontFamily yahei(L"Microsoft YaHei");
-    if (yahei.GetLastStatus() == Ok) {
-      fontFamily = yahei;
-    } else {
-      fontFamily = FontFamily(L"Segoe UI");
+  std::unique_ptr<FontFamily> fontFamily = std::make_unique<FontFamily>(L"Microsoft JhengHei");
+  if (fontFamily->GetLastStatus() != Ok) {
+    fontFamily = std::make_unique<FontFamily>(L"Microsoft YaHei");
+  }
+  if (fontFamily->GetLastStatus() != Ok) {
+    fontFamily = std::make_unique<FontFamily>(L"Segoe UI");
+  }
+  if (fontFamily->GetLastStatus() != Ok) {
+    const FontFamily* generic = FontFamily::GenericSansSerif();
+    if (generic) {
+      fontFamily = std::unique_ptr<FontFamily>(generic->Clone());
     }
   }
 
   // 4. Header Bar (Status badge & Buttons)
   if (!is_click_through_) {
     // Top-Left LIVE Badge
-    Gdiplus::Font badgeFont(&fontFamily, 9.0f, FontStyleBold, UnitPoint);
+    Gdiplus::Font badgeFont(fontFamily.get(), 9.0f, FontStyleBold, UnitPoint);
     SolidBrush badgeBg(Color(180, 2, 132, 199));
     RectF badgeRect(22.0f, 10.0f, 85.0f, 20.0f);
     GraphicsPath badgePath;
@@ -335,7 +343,7 @@ void NativeSubtitleOverlay::Render() {
     g.DrawString(L"● 懸浮字幕", -1, &badgeFont, badgeRect, &centerFormat, &badgeText);
 
     // Top-Right Interactive Buttons
-    Gdiplus::Font btnFont(&fontFamily, 9.5f, FontStyleBold, UnitPoint);
+    Gdiplus::Font btnFont(fontFamily.get(), 9.5f, FontStyleBold, UnitPoint);
     SolidBrush btnBg(Color(160, 30, 41, 59));
     SolidBrush btnText(Color(240, 255, 255, 255));
     SolidBrush cyanText(Color(255, 0, 229, 255));
@@ -399,7 +407,7 @@ void NativeSubtitleOverlay::Render() {
     font_minus_btn_rect_ = { 0, 0, 0, 0 };
     bg_toggle_btn_rect_ = { 0, 0, 0, 0 };
 
-    Gdiplus::Font hintFont(&fontFamily, 9.0f, FontStyleRegular, UnitPoint);
+    Gdiplus::Font hintFont(fontFamily.get(), 9.0f, FontStyleRegular, UnitPoint);
     StringFormat rightFormat;
     rightFormat.SetAlignment(StringAlignmentFar);
     rightFormat.SetLineAlignment(StringAlignmentCenter);
@@ -422,7 +430,7 @@ void NativeSubtitleOverlay::Render() {
   RectF targetRect(24.0f, 36.0f, static_cast<REAL>(width_ - 48), 65.0f);
   GraphicsPath targetPath;
   targetPath.AddString(
-      dispTarget.c_str(), -1, &fontFamily,
+      dispTarget.c_str(), -1, fontFamily.get(),
       FontStyleBold, static_cast<REAL>(font_size_),
       targetRect, &textFormat);
 
@@ -440,7 +448,7 @@ void NativeSubtitleOverlay::Render() {
     RectF sourceRect(24.0f, 102.0f, static_cast<REAL>(width_ - 48), 44.0f);
     GraphicsPath sourcePath;
     sourcePath.AddString(
-        source_text_.c_str(), -1, &fontFamily,
+        source_text_.c_str(), -1, fontFamily.get(),
         FontStyleRegular, static_cast<REAL>(font_size_ * 0.68f),
         sourceRect, &textFormat);
 
