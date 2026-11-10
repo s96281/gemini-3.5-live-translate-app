@@ -13,7 +13,6 @@ import '../services/window_service.dart';
 import '../widgets/api_key_dialog.dart';
 import '../widgets/audio_wave_visualizer.dart';
 import '../widgets/language_selector.dart';
-import '../widgets/mini_overlay_hud.dart';
 import '../widgets/modern_control_bar.dart';
 import '../widgets/subtitle_card.dart';
 
@@ -35,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   LiveConnectionState _connectionState = LiveConnectionState.disconnected;
   double _currentAmplitude = 0.0;
   bool _isMuted = false;
-  bool _isMiniOverlayMode = false;
+  bool _isNativeOverlayActive = false;
 
   // Subtitle / Turn State
   TranslationTurn? _currentTurn;
@@ -58,6 +57,15 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadPreferences();
     _initRecorderListeners();
+    WindowService.initNativeCallbacks(
+      onClosed: () {
+        if (mounted) {
+          setState(() {
+            _isNativeOverlayActive = false;
+          });
+        }
+      },
+    );
   }
 
   @override
@@ -250,6 +258,12 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       _currentTurn!.sourceText += text;
     });
+    if (_isNativeOverlayActive) {
+      WindowService.updateNativeOverlaySubtitle(
+        source: _currentTurn!.sourceText,
+        target: _currentTurn!.targetText,
+      );
+    }
     _scrollToBottom();
     _scheduleAutoSegment(text);
   }
@@ -263,6 +277,12 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       _currentTurn!.targetText += text;
     });
+    if (_isNativeOverlayActive) {
+      WindowService.updateNativeOverlaySubtitle(
+        source: _currentTurn!.sourceText,
+        target: _currentTurn!.targetText,
+      );
+    }
     _scrollToBottom();
     _scheduleAutoSegment(text);
   }
@@ -302,17 +322,30 @@ class _HomeScreenState extends State<HomeScreen> {
       _history.insert(0, finishedTurn);
       _currentTurn = null;
     });
+
+    if (_isNativeOverlayActive) {
+      WindowService.updateNativeOverlaySubtitle(
+        source: finishedTurn.sourceText,
+        target: finishedTurn.targetText,
+      );
+    }
   }
 
-  Future<void> _toggleMiniOverlayMode() async {
-    final next = !_isMiniOverlayMode;
+  Future<void> _toggleNativeSubtitleOverlay() async {
+    final next = !_isNativeOverlayActive;
+    await WindowService.showNativeOverlay(next);
     if (next) {
-      await WindowService.enterMiniOverlay(width: 880, height: 160);
-    } else {
-      await WindowService.exitMiniOverlay();
+      final initialSource = _currentTurn?.sourceText ??
+          (_history.isNotEmpty ? _history.first.sourceText : '');
+      final initialTarget = _currentTurn?.targetText ??
+          (_history.isNotEmpty ? _history.first.targetText : '');
+      await WindowService.updateNativeOverlaySubtitle(
+        source: initialSource,
+        target: initialTarget,
+      );
     }
     setState(() {
-      _isMiniOverlayMode = next;
+      _isNativeOverlayActive = next;
     });
   }
 
@@ -386,6 +419,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _history.clear();
       _currentTurn = null;
     });
+    if (_isNativeOverlayActive) {
+      WindowService.updateNativeOverlaySubtitle(source: '', target: '');
+    }
     _showToast('字幕歷史已清除');
   }
 
@@ -394,26 +430,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final targetLang = SupportedLanguages.findByCode(_config.targetLanguageCode);
     final isRecording = _recorderService.isRecording;
-
-    if (_isMiniOverlayMode) {
-      return MiniOverlayHud(
-        currentTurn: _currentTurn,
-        history: _history,
-        config: _config,
-        connectionState: _connectionState,
-        isRecording: isRecording,
-        isMuted: _isMuted,
-        onToggleRecording: _toggleTranslationSession,
-        onToggleMute: () {
-          setState(() {
-            _isMuted = !_isMuted;
-            _playerService.isMuted = _isMuted;
-          });
-        },
-        onExitOverlay: _toggleMiniOverlayMode,
-        onSelectLanguage: _openLanguageSelector,
-      );
-    }
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF090D16) : const Color(0xFFF3F6FC),
@@ -567,18 +583,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // Desktop Floating Transparent Subtitle Window Button (Lyrics Overlay)
           Tooltip(
-            message: '切換為桌面透明懸浮字幕 (歌詞置頂模式)',
+            message: _isNativeOverlayActive
+                ? '關閉桌面懸浮字幕 (置頂/穿透模式)'
+                : '開啟桌面全透明懸浮字幕 (歌詞置頂/穿透模式)',
             child: InkWell(
-              onTap: _toggleMiniOverlayMode,
+              onTap: _toggleNativeSubtitleOverlay,
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 margin: const EdgeInsets.only(right: 6),
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.06) : Colors.white,
+                  color: _isNativeOverlayActive
+                      ? cyanPrimary.withOpacity(0.18)
+                      : (isDark ? Colors.white.withOpacity(0.06) : Colors.white),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isDark ? Colors.white10 : const Color(0xFFCBD5E1),
+                    color: _isNativeOverlayActive
+                        ? cyanPrimary
+                        : (isDark ? Colors.white10 : const Color(0xFFCBD5E1)),
                   ),
                   boxShadow: isDark
                       ? []
@@ -593,7 +615,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Icon(
                   Icons.subtitles_rounded,
                   size: 15,
-                  color: cyanPrimary,
+                  color: _isNativeOverlayActive
+                      ? cyanPrimary
+                      : (isDark ? Colors.white70 : const Color(0xFF475569)),
                 ),
               ),
             ),

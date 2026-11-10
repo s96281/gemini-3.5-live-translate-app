@@ -2,101 +2,21 @@
 
 #include <optional>
 #include <vector>
+#include <string>
 #include <dwmapi.h>
 #include <flutter/event_stream_handler_functions.h>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "native_subtitle_overlay.h"
 
 namespace {
 
-typedef enum _ACCENT_STATE {
-  ACCENT_DISABLED = 0,
-  ACCENT_ENABLE_GRADIENT = 1,
-  ACCENT_ENABLE_TRANSPARENTGRADIENT = 2,
-  ACCENT_ENABLE_BLURBEHIND = 3,
-  ACCENT_ENABLE_ACRYLICBLURBEHIND = 4,
-  ACCENT_INVALID_STATE = 5
-} ACCENT_STATE;
-
-typedef struct _ACCENT_POLICY {
-  ACCENT_STATE AccentState;
-  DWORD AccentFlags;
-  COLORREF GradientColor;
-  DWORD AnimationId;
-} ACCENT_POLICY;
-
-typedef enum _WINDOWCOMPOSITIONATTRIB {
-  WCA_UNDEFINED = 0,
-  WCA_NCRENDERING_ENABLED = 1,
-  WCA_NCRENDERING_POLICY = 2,
-  WCA_TRANSITIONS_FORCEDISABLED = 3,
-  WCA_ALLOW_NCPAINT = 4,
-  WCA_CAPTION_BUTTON_BOUNDS = 5,
-  WCA_NONCLIENT_RTL_LAYOUT = 6,
-  WCA_FORCE_ICONIC_REPRESENTATION = 7,
-  WCA_EXTENDED_FRAME_BOUNDS = 8,
-  WCA_HAS_ICONIC_BITMAP = 9,
-  WCA_THEME_ATTRIBUTES = 10,
-  WCA_NOCACHE = 11,
-  WCA_EXCLUDED_FROM_LIVEPREVIEW = 12,
-  WCA_VIDEO_OVERLAY_ACTIVE = 13,
-  WCA_FORCE_ACTIVEWINDOW_APPEARANCE = 14,
-  WCA_DISALLOW_PEEK = 15,
-  WCA_CLOAK = 16,
-  WCA_CLOAKED = 17,
-  WCA_ACCENT_POLICY = 19,
-  WCA_FREEZE_REPRESENTATION = 20,
-  WCA_EVER_UNCLOAKED = 21,
-  WCA_VISUAL_OWNER = 22,
-  WCA_HOLOGRAPHIC = 23,
-  WCA_EXCLUDED_FROM_DDA = 24,
-  WCA_PASSIVEUPDATEMODE = 25,
-  WCA_USEDARKMODECOLORS = 26,
-  WCA_CORNER_STYLE = 27,
-  WCA_PART_COLOR = 28,
-  WCA_DISABLE_MOVESIZE_FEEDBACK = 29,
-  WCA_LAST = 30
-} WINDOWCOMPOSITIONATTRIB;
-
-typedef struct _WINDOWCOMPOSITIONATTRIBDATA {
-  WINDOWCOMPOSITIONATTRIB Attrib;
-  PVOID pvData;
-  SIZE_T cbData;
-} WINDOWCOMPOSITIONATTRIBDATA;
-
-typedef BOOL (WINAPI *pfnSetWindowCompositionAttribute)(HWND, WINDOWCOMPOSITIONATTRIBDATA*);
-
-void SetWindowTransparency(HWND hwnd, bool enable) {
-  HMODULE user32 = GetModuleHandleW(L"user32.dll");
-  if (user32) {
-    auto setWindowCompositionAttribute =
-        reinterpret_cast<pfnSetWindowCompositionAttribute>(
-            GetProcAddress(user32, "SetWindowCompositionAttribute"));
-    if (setWindowCompositionAttribute) {
-      ACCENT_POLICY policy = {};
-      if (enable) {
-        policy.AccentState = ACCENT_ENABLE_TRANSPARENTGRADIENT;
-        policy.AccentFlags = 2;
-        policy.GradientColor = 0x00000000;
-      } else {
-        policy.AccentState = ACCENT_DISABLED;
-      }
-      WINDOWCOMPOSITIONATTRIBDATA data = {
-          WCA_ACCENT_POLICY,
-          &policy,
-          sizeof(policy)
-      };
-      setWindowCompositionAttribute(hwnd, &data);
-    }
-  }
-
-  MARGINS margins;
-  if (enable) {
-    margins = {-1, -1, -1, -1};
-  } else {
-    margins = {0, 0, 0, 0};
-  }
-  DwmExtendFrameIntoClientArea(hwnd, &margins);
+std::wstring Utf8ToUtf16(const std::string& utf8) {
+  if (utf8.empty()) return std::wstring();
+  int size_needed = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), static_cast<int>(utf8.size()), nullptr, 0);
+  std::wstring utf16(size_needed, 0);
+  MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), static_cast<int>(utf8.size()), &utf16[0], size_needed);
+  return utf16;
 }
 
 }  // namespace
@@ -110,6 +30,9 @@ bool FlutterWindow::OnCreate() {
   if (!Win32Window::OnCreate()) {
     return false;
   }
+
+  // Initialize Native Win32 Subtitle Overlay (100% crash-free layered window)
+  NativeSubtitleOverlay::Instance().Initialize(GetModuleHandle(nullptr), GetHandle());
 
   RECT frame = GetClientArea();
 
@@ -217,6 +140,21 @@ void FlutterWindow::SetupWindowChannels() {
       messenger, "com.gemini.livetranslate/window",
       &flutter::StandardMethodCodec::GetInstance());
 
+  // Setup callbacks from Native Subtitle Overlay to Flutter
+  NativeSubtitleOverlay::Instance().SetOnClosedCallback([this]() {
+    if (window_channel_) {
+      window_channel_->InvokeMethod("onNativeOverlayClosed", nullptr);
+    }
+  });
+
+  NativeSubtitleOverlay::Instance().SetOnClickThroughChangedCallback([this](bool clickThrough) {
+    if (window_channel_) {
+      window_channel_->InvokeMethod(
+          "onNativeOverlayClickThroughChanged",
+          std::make_unique<flutter::EncodableValue>(clickThrough));
+    }
+  });
+
   window_channel_->SetMethodCallHandler(
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
@@ -226,72 +164,49 @@ void FlutterWindow::SetupWindowChannels() {
           return;
         }
 
-        if (call.method_name() == "enterMiniOverlay") {
-          // 記住原本視窗座標與尺寸與樣式
-          RECT rect;
-          GetWindowRect(hwnd, &rect);
-          if (rect.right - rect.left > 300 && rect.bottom - rect.top > 300) {
-            normal_rect_ = rect;
-          }
-          if (normal_style_ == 0) {
-            normal_style_ = GetWindowLongPtr(hwnd, GWL_STYLE);
-          }
-
-          int mini_width = 880;
-          int mini_height = 160;
+        if (call.method_name() == "showNativeOverlay") {
+          bool show = true;
           if (call.arguments()) {
             if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
-              auto w_it = args->find(flutter::EncodableValue("width"));
-              if (w_it != args->end()) mini_width = std::get<int>(w_it->second);
-              auto h_it = args->find(flutter::EncodableValue("height"));
-              if (h_it != args->end()) mini_height = std::get<int>(h_it->second);
+              auto it = args->find(flutter::EncodableValue("show"));
+              if (it != args->end() && std::holds_alternative<bool>(it->second)) {
+                show = std::get<bool>(it->second);
+              }
             }
           }
-
-          // 移除標準標題列與邊框，切換為無邊框 POPUP 懸浮視窗
-          LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
-          style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
-          style |= WS_POPUP;
-          SetWindowLongPtr(hwnd, GWL_STYLE, style);
-
-          // 啟用 DWM 全透明背景
-          SetWindowTransparency(hwnd, true);
-
-          // 計算在當前螢幕工作區置中靠近底部
-          HMONITOR hMon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-          MONITORINFO mi = { sizeof(mi) };
-          int x = rect.left;
-          int y = rect.top;
-          if (GetMonitorInfo(hMon, &mi)) {
-            x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - mini_width) / 2;
-            y = mi.rcWork.bottom - mini_height - 60;
-          }
-
-          // 置頂並更新尺寸與座標，通知 Windows 樣式變更 (SWP_FRAMECHANGED)
-          SetWindowPos(hwnd, HWND_TOPMOST, x, y, mini_width, mini_height,
-                       SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+          NativeSubtitleOverlay::Instance().Show(show);
           result->Success(flutter::EncodableValue(true));
-        } else if (call.method_name() == "exitMiniOverlay") {
-          // 關閉 DWM 全透明背景
-          SetWindowTransparency(hwnd, false);
-
-          // 還原原本標準視窗樣式 (含標題列與邊框)
-          LONG_PTR style = (normal_style_ != 0) ? normal_style_ : (WS_OVERLAPPEDWINDOW | WS_VISIBLE);
-          style &= ~WS_POPUP;
-          SetWindowLongPtr(hwnd, GWL_STYLE, style);
-
-          int w = normal_rect_.right - normal_rect_.left;
-          int h = normal_rect_.bottom - normal_rect_.top;
-          if (w < 400 || h < 400) {
-            w = 1280;
-            h = 720;
+        } else if (call.method_name() == "updateNativeOverlaySubtitle") {
+          std::wstring source_w;
+          std::wstring target_w;
+          if (call.arguments()) {
+            if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
+              auto src_it = args->find(flutter::EncodableValue("source"));
+              if (src_it != args->end() && std::holds_alternative<std::string>(src_it->second)) {
+                source_w = Utf8ToUtf16(std::get<std::string>(src_it->second));
+              }
+              auto tgt_it = args->find(flutter::EncodableValue("target"));
+              if (tgt_it != args->end() && std::holds_alternative<std::string>(tgt_it->second)) {
+                target_w = Utf8ToUtf16(std::get<std::string>(tgt_it->second));
+              }
+            }
           }
-          int x = normal_rect_.left;
-          int y = normal_rect_.top;
-          // 取消置頂並恢復主視窗原本尺寸與位置
-          SetWindowPos(hwnd, HWND_NOTOPMOST, x, y, w, h,
-                       SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+          NativeSubtitleOverlay::Instance().UpdateSubtitle(source_w, target_w);
           result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "setNativeOverlayClickThrough") {
+          bool ignore = false;
+          if (call.arguments()) {
+            if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
+              auto it = args->find(flutter::EncodableValue("ignore"));
+              if (it != args->end() && std::holds_alternative<bool>(it->second)) {
+                ignore = std::get<bool>(it->second);
+              }
+            }
+          }
+          NativeSubtitleOverlay::Instance().SetClickThrough(ignore);
+          result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "isNativeOverlayVisible") {
+          result->Success(flutter::EncodableValue(NativeSubtitleOverlay::Instance().IsVisible()));
         } else if (call.method_name() == "setAlwaysOnTop") {
           bool on_top = false;
           if (call.arguments()) {
@@ -302,23 +217,6 @@ void FlutterWindow::SetupWindowChannels() {
           }
           SetWindowPos(hwnd, on_top ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-          result->Success(flutter::EncodableValue(true));
-        } else if (call.method_name() == "setIgnoreMouseEvents") {
-          bool ignore = false;
-          if (call.arguments()) {
-            if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
-              auto it = args->find(flutter::EncodableValue("ignore"));
-              if (it != args->end()) ignore = std::get<bool>(it->second);
-            }
-          }
-          LONG_PTR ex_style = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
-          if (ignore) {
-            SetWindowLongPtr(hwnd, GWL_EXSTYLE, ex_style | WS_EX_TRANSPARENT | WS_EX_LAYERED);
-          } else {
-            SetWindowLongPtr(hwnd, GWL_EXSTYLE, ex_style & ~WS_EX_TRANSPARENT);
-          }
-          SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
-                       SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
           result->Success(flutter::EncodableValue(true));
         } else if (call.method_name() == "startDragging") {
           ReleaseCapture();
@@ -331,6 +229,8 @@ void FlutterWindow::SetupWindowChannels() {
 }
 
 void FlutterWindow::OnDestroy() {
+  NativeSubtitleOverlay::Instance().Shutdown();
+
   if (wasapi_capture_) {
     wasapi_capture_->Stop();
     wasapi_capture_ = nullptr;

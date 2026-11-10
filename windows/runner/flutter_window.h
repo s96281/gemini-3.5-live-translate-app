@@ -48,10 +48,8 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> method_channel_;
   std::unique_ptr<flutter::EventChannel<flutter::EncodableValue>> event_channel_;
 
-  // Window control channel for Mini Floating Overlay mode
+  // Window control channel for Native Subtitle Overlay
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> window_channel_;
-  RECT normal_rect_{};
-  LONG_PTR normal_style_{0};
 
   std::mutex audio_queue_mutex_;
   std::queue<std::vector<uint8_t>> audio_queue_;
