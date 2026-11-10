@@ -99,29 +99,6 @@ void SetWindowTransparency(HWND hwnd, bool enable) {
   DwmExtendFrameIntoClientArea(hwnd, &margins);
 }
 
-std::vector<HWND> GetSubwindows(HWND main_hwnd) {
-  std::vector<HWND> subwindows;
-  EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
-    auto* p_subwindows = reinterpret_cast<std::vector<HWND>*>(lParam);
-    DWORD pid = 0;
-    GetWindowThreadProcessId(hwnd, &pid);
-    if (pid == GetCurrentProcessId()) {
-      if (GetParent(hwnd) == nullptr) {
-        p_subwindows->push_back(hwnd);
-      }
-    }
-    return TRUE;
-  }, reinterpret_cast<LPARAM>(&subwindows));
-
-  std::vector<HWND> result;
-  for (HWND h : subwindows) {
-    if (h != main_hwnd) {
-      result.push_back(h);
-    }
-  }
-  return result;
-}
-
 }  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -253,14 +230,14 @@ void FlutterWindow::SetupWindowChannels() {
           // 記住原本視窗座標與尺寸與樣式
           RECT rect;
           GetWindowRect(hwnd, &rect);
-          if (rect.right - rect.left > 250 && rect.bottom - rect.top > 250) {
+          if (rect.right - rect.left > 300 && rect.bottom - rect.top > 300) {
             normal_rect_ = rect;
           }
           if (normal_style_ == 0) {
             normal_style_ = GetWindowLongPtr(hwnd, GWL_STYLE);
           }
 
-          int mini_width = 520;
+          int mini_width = 880;
           int mini_height = 160;
           if (call.arguments()) {
             if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
@@ -280,8 +257,18 @@ void FlutterWindow::SetupWindowChannels() {
           // 啟用 DWM 全透明背景
           SetWindowTransparency(hwnd, true);
 
-          // 置頂並縮小至懸浮條尺寸，通知 Windows 樣式變更 (SWP_FRAMECHANGED)
-          SetWindowPos(hwnd, HWND_TOPMOST, rect.left, rect.top, mini_width, mini_height,
+          // 計算在當前螢幕工作區置中靠近底部
+          HMONITOR hMon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+          MONITORINFO mi = { sizeof(mi) };
+          int x = rect.left;
+          int y = rect.top;
+          if (GetMonitorInfo(hMon, &mi)) {
+            x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - mini_width) / 2;
+            y = mi.rcWork.bottom - mini_height - 60;
+          }
+
+          // 置頂並更新尺寸與座標，通知 Windows 樣式變更 (SWP_FRAMECHANGED)
+          SetWindowPos(hwnd, HWND_TOPMOST, x, y, mini_width, mini_height,
                        SWP_FRAMECHANGED | SWP_SHOWWINDOW);
           result->Success(flutter::EncodableValue(true));
         } else if (call.method_name() == "exitMiniOverlay") {
@@ -295,13 +282,13 @@ void FlutterWindow::SetupWindowChannels() {
 
           int w = normal_rect_.right - normal_rect_.left;
           int h = normal_rect_.bottom - normal_rect_.top;
-          if (w < 300 || h < 400) {
-            w = 420;
-            h = 750;
+          if (w < 400 || h < 400) {
+            w = 1280;
+            h = 720;
           }
           int x = normal_rect_.left;
           int y = normal_rect_.top;
-          // 取消置頂並恢復主視窗尺寸
+          // 取消置頂並恢復主視窗原本尺寸與位置
           SetWindowPos(hwnd, HWND_NOTOPMOST, x, y, w, h,
                        SWP_FRAMECHANGED | SWP_SHOWWINDOW);
           result->Success(flutter::EncodableValue(true));
@@ -336,89 +323,6 @@ void FlutterWindow::SetupWindowChannels() {
         } else if (call.method_name() == "startDragging") {
           ReleaseCapture();
           SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
-          result->Success(flutter::EncodableValue(true));
-        } else if (call.method_name() == "configureSubwindowAsOverlay") {
-          auto subwindows = GetSubwindows(hwnd);
-          for (HWND sub : subwindows) {
-            // 移除標準邊框與標題列，設置 POPUP 樣式
-            LONG_PTR style = GetWindowLongPtr(sub, GWL_STYLE);
-            style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
-            style |= WS_POPUP;
-            SetWindowLongPtr(sub, GWL_STYLE, style);
-
-            // 啟用 DWM 全透明背景
-            SetWindowTransparency(sub, true);
-
-            // 置頂並更新畫面
-            SetWindowPos(sub, HWND_TOPMOST, 0, 0, 0, 0,
-                         SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-          }
-          result->Success(flutter::EncodableValue(true));
-        } else if (call.method_name() == "setSubwindowIgnoreMouseEvents") {
-          bool ignore = false;
-          if (call.arguments()) {
-            if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
-              auto it = args->find(flutter::EncodableValue("ignore"));
-              if (it != args->end()) ignore = std::get<bool>(it->second);
-            }
-          }
-          auto subwindows = GetSubwindows(hwnd);
-          for (HWND sub : subwindows) {
-            LONG_PTR ex_style = GetWindowLongPtr(sub, GWL_EXSTYLE);
-            if (ignore) {
-              SetWindowLongPtr(sub, GWL_EXSTYLE, ex_style | WS_EX_TRANSPARENT | WS_EX_LAYERED);
-            } else {
-              SetWindowLongPtr(sub, GWL_EXSTYLE, ex_style & ~WS_EX_TRANSPARENT);
-            }
-            SetWindowPos(sub, nullptr, 0, 0, 0, 0,
-                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
-          }
-          result->Success(flutter::EncodableValue(true));
-        } else if (call.method_name() == "startDraggingSubwindow") {
-          auto subwindows = GetSubwindows(hwnd);
-          for (HWND sub : subwindows) {
-            ReleaseCapture();
-            SendMessage(sub, WM_NCLBUTTONDOWN, HTCAPTION, 0);
-            break;
-          }
-          result->Success(flutter::EncodableValue(true));
-        } else if (call.method_name() == "moveSubwindow") {
-          double dx = 0.0;
-          double dy = 0.0;
-          if (call.arguments()) {
-            if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
-              auto dx_it = args->find(flutter::EncodableValue("dx"));
-              if (dx_it != args->end()) {
-                if (std::holds_alternative<double>(dx_it->second)) {
-                  dx = std::get<double>(dx_it->second);
-                } else if (std::holds_alternative<int>(dx_it->second)) {
-                  dx = static_cast<double>(std::get<int>(dx_it->second));
-                }
-              }
-              auto dy_it = args->find(flutter::EncodableValue("dy"));
-              if (dy_it != args->end()) {
-                if (std::holds_alternative<double>(dy_it->second)) {
-                  dy = std::get<double>(dy_it->second);
-                } else if (std::holds_alternative<int>(dy_it->second)) {
-                  dy = static_cast<double>(std::get<int>(dy_it->second));
-                }
-              }
-            }
-          }
-          auto subwindows = GetSubwindows(hwnd);
-          for (HWND sub : subwindows) {
-            RECT rc;
-            if (GetWindowRect(sub, &rc)) {
-              SetWindowPos(sub, nullptr, rc.left + static_cast<int>(dx), rc.top + static_cast<int>(dy), 0, 0,
-                           SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-            }
-          }
-          result->Success(flutter::EncodableValue(true));
-        } else if (call.method_name() == "closeSubwindow") {
-          auto subwindows = GetSubwindows(hwnd);
-          for (HWND sub : subwindows) {
-            PostMessage(sub, WM_CLOSE, 0, 0);
-          }
           result->Success(flutter::EncodableValue(true));
         } else {
           result->NotImplemented();

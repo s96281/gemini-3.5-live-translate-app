@@ -1,13 +1,13 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
 
-/// Service to handle native window actions like Mini Overlay (Floating Picture-in-Picture)
+/// Service to handle native window actions like Mini Overlay (Floating Lyrics / Picture-in-Picture)
 /// and Always-on-Top on desktop platforms (Windows).
 class WindowService {
   static const MethodChannel _channel = MethodChannel('com.gemini.livetranslate/window');
 
   /// Requests the OS to switch into a compact, always-on-top floating subtitle overlay.
-  static Future<bool> enterMiniOverlay({int width = 520, int height = 160}) async {
+  static Future<bool> enterMiniOverlay({int width = 880, int height = 160}) async {
     if (!Platform.isWindows) return false;
     try {
       final res = await _channel.invokeMethod<bool>('enterMiniOverlay', {
@@ -62,66 +62,6 @@ class WindowService {
     if (!Platform.isWindows) return false;
     try {
       final res = await _channel.invokeMethod<bool>('startDragging');
-      return res ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Configures any created secondary subwindows as frameless, DWM transparent, and topmost overlay.
-  static Future<bool> configureSubwindowAsOverlay() async {
-    if (!Platform.isWindows) return false;
-    try {
-      final res = await _channel.invokeMethod<bool>('configureSubwindowAsOverlay');
-      return res ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Sets mouse click-through on secondary subwindows.
-  static Future<bool> setSubwindowIgnoreMouseEvents(bool ignore) async {
-    if (!Platform.isWindows) return false;
-    try {
-      final res = await _channel.invokeMethod<bool>('setSubwindowIgnoreMouseEvents', {
-        'ignore': ignore,
-      });
-      return res ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Native drag for secondary subwindows.
-  static Future<bool> startDraggingSubwindow() async {
-    if (!Platform.isWindows) return false;
-    try {
-      final res = await _channel.invokeMethod<bool>('startDraggingSubwindow');
-      return res ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Moves secondary subwindow by delta offset using native Win32 SetWindowPos.
-  static Future<bool> moveSubwindow(double dx, double dy) async {
-    if (!Platform.isWindows) return false;
-    try {
-      final res = await _channel.invokeMethod<bool>('moveSubwindow', {
-        'dx': dx,
-        'dy': dy,
-      });
-      return res ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Closes secondary subwindows via native Win32 WM_CLOSE.
-  static Future<bool> closeSubwindow() async {
-    if (!Platform.isWindows) return false;
-    try {
-      final res = await _channel.invokeMethod<bool>('closeSubwindow');
       return res ?? false;
     } catch (_) {
       return false;

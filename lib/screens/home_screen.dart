@@ -10,7 +10,6 @@ import '../services/audio_player_service.dart';
 import '../services/audio_recorder_service.dart';
 import '../services/gemini_live_client.dart';
 import '../services/window_service.dart';
-import '../services/subtitle_overlay_manager.dart';
 import '../widgets/api_key_dialog.dart';
 import '../widgets/audio_wave_visualizer.dart';
 import '../widgets/language_selector.dart';
@@ -240,13 +239,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _connectionState = LiveConnectionState.disconnected;
       _currentAmplitude = 0.0;
     });
-
-    SubtitleOverlayManager.instance.sendStreamingSubtitle(
-      sourceText: '',
-      translatedText: '翻譯階段已結束',
-      isFinal: true,
-      targetLangCode: _config.targetLanguageCode,
-    );
   }
 
   void _onSourceSpeechReceived(String text) {
@@ -260,13 +252,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     _scrollToBottom();
     _scheduleAutoSegment(text);
-
-    SubtitleOverlayManager.instance.sendStreamingSubtitle(
-      sourceText: _currentTurn?.sourceText ?? '',
-      translatedText: _currentTurn?.targetText ?? '',
-      isFinal: false,
-      targetLangCode: _config.targetLanguageCode,
-    );
   }
 
   void _onTargetSpeechReceived(String text) {
@@ -280,13 +265,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     _scrollToBottom();
     _scheduleAutoSegment(text);
-
-    SubtitleOverlayManager.instance.sendStreamingSubtitle(
-      sourceText: _currentTurn?.sourceText ?? '',
-      translatedText: _currentTurn?.targetText ?? '',
-      isFinal: false,
-      targetLangCode: _config.targetLanguageCode,
-    );
   }
 
   /// 智慧自動分段機制：
@@ -324,19 +302,12 @@ class _HomeScreenState extends State<HomeScreen> {
       _history.insert(0, finishedTurn);
       _currentTurn = null;
     });
-
-    SubtitleOverlayManager.instance.sendStreamingSubtitle(
-      sourceText: finishedTurn.sourceText,
-      translatedText: finishedTurn.targetText,
-      isFinal: true,
-      targetLangCode: _config.targetLanguageCode,
-    );
   }
 
   Future<void> _toggleMiniOverlayMode() async {
     final next = !_isMiniOverlayMode;
     if (next) {
-      await WindowService.enterMiniOverlay(width: 520, height: 160);
+      await WindowService.enterMiniOverlay(width: 880, height: 160);
     } else {
       await WindowService.exitMiniOverlay();
     }
@@ -594,9 +565,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Spacer(),
 
-          // Mini Floating Overlay Button (PiP Mode)
+          // Desktop Floating Transparent Subtitle Window Button (Lyrics Overlay)
           Tooltip(
-            message: '切換為置頂懸浮字幕窗 (Mini Overlay)',
+            message: '切換為桌面透明懸浮字幕 (歌詞置頂模式)',
             child: InkWell(
               onTap: _toggleMiniOverlayMode,
               borderRadius: BorderRadius.circular(12),
@@ -620,67 +591,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                 ),
                 child: Icon(
-                  Icons.picture_in_picture_alt_rounded,
+                  Icons.subtitles_rounded,
                   size: 15,
                   color: cyanPrimary,
                 ),
               ),
             ),
-          ),
-
-          // Desktop Floating Transparent Subtitle Window Button (Lyrics Overlay)
-          ValueListenableBuilder<bool>(
-            valueListenable: SubtitleOverlayManager.instance.isOverlayActive,
-            builder: (context, isActive, _) {
-              return Tooltip(
-                message: isActive
-                    ? '關閉獨立桌面懸浮字幕視窗'
-                    : '開啟獨立桌面全透明懸浮字幕視窗 (歌詞置頂模式)',
-                child: InkWell(
-                  onTap: () {
-                    SubtitleOverlayManager.instance.toggleSubtitleWindow(
-                      initialSource: _currentTurn?.sourceText ??
-                          (_history.isNotEmpty ? _history.first.sourceText : ''),
-                      initialTarget: _currentTurn?.targetText ??
-                          (_history.isNotEmpty ? _history.first.targetText : ''),
-                      targetLangCode: _config.targetLanguageCode,
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 6),
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? cyanPrimary.withOpacity(0.18)
-                          : (isDark ? Colors.white.withOpacity(0.06) : Colors.white),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isActive
-                            ? cyanPrimary
-                            : (isDark ? Colors.white10 : const Color(0xFFCBD5E1)),
-                      ),
-                      boxShadow: isDark
-                          ? []
-                          : [
-                              const BoxShadow(
-                                color: Color(0x0C000000),
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                    ),
-                    child: Icon(
-                      Icons.subtitles_rounded,
-                      size: 15,
-                      color: isActive
-                          ? cyanPrimary
-                          : (isDark ? Colors.white70 : const Color(0xFF475569)),
-                    ),
-                  ),
-                ),
-              );
-            },
           ),
 
           // Dark / Light Theme Toggle Button
