@@ -1,0 +1,121 @@
+<Window x:Class="GeminiLiveTranslate.App.Views.FloatingOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:GeminiLiveTranslate.App.Controls"
+        Title="Gemini 3.5 Live Subtitle Overlay"
+        Width="960" Height="170"
+        MinWidth="360" MinHeight="100"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Topmost="True"
+        ShowInTaskbar="False"
+        Background="Transparent"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+
+    <Window.Resources>
+        <!-- Modern Pill Button Style -->
+        <Style x:Key="OverlayPillButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#A01E293B"/>
+            <Setter Property="Foreground" Value="#F1F5F9"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="8,3"/>
+            <Setter Property="Margin" Value="3,0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#D0334155"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#F0475569"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <!-- Outer Container Border with Margin for Win32 Border Resizing -->
+    <Border x:Name="RootContainer"
+            Margin="6"
+            CornerRadius="16"
+            BorderThickness="1">
+        <Border.Background>
+            <SolidColorBrush x:Name="ContainerBackgroundBrush" Color="#D00F172A"/>
+        </Border.Background>
+        <Border.BorderBrush>
+            <SolidColorBrush x:Name="ContainerBorderBrush" Color="#60475569"/>
+        </Border.BorderBrush>
+
+        <Grid Margin="12,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Row 0: Header Interactive Bar (Hidden when Click-Through is Active) -->
+            <Grid x:Name="HeaderBar" Grid.Row="0" Margin="0,0,0,4">
+                <!-- Status Badge -->
+                <Border HorizontalAlignment="Left" Background="#B00284C7" CornerRadius="6" Padding="8,2">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="6" Height="6" Fill="#00E5FF" Margin="0,0,5,0"/>
+                        <TextBlock Text="桌面懸浮字幕" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Interactive Buttons -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource OverlayPillButtonStyle}" Content="A-" Click="OnFontMinusClick" ToolTip="縮小字體"/>
+                    <Button Style="{StaticResource OverlayPillButtonStyle}" Content="A+" Click="OnFontPlusClick" ToolTip="放大字體"/>
+                    <Button Style="{StaticResource OverlayPillButtonStyle}" Content="背景" Click="OnToggleBackgroundClick" ToolTip="切換透明/半透/深色背景"/>
+                    <Button Style="{StaticResource OverlayPillButtonStyle}" Content="穿透" Foreground="#00E5FF" Click="OnEnableClickThroughClick" ToolTip="鎖定並穿透滑鼠 (Ctrl+F8 解鎖)"/>
+                    <Button Style="{StaticResource OverlayPillButtonStyle}" Content="✕" Background="#B0DC2626" Click="OnCloseClick" ToolTip="關閉懸浮視窗"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Click-Through Indicator Banner (Visible ONLY when Click-Through is Active) -->
+            <Border x:Name="ClickThroughBadge" Grid.Row="0" HorizontalAlignment="Right" Visibility="Collapsed" Background="#80000000" CornerRadius="6" Padding="8,2">
+                <TextBlock Text="已穿透滑鼠 · 按 Ctrl+F8 解鎖" FontSize="10" Foreground="#00E5FF"/>
+            </Border>
+
+            <!-- Row 1: Target Translated Text (Large, High Contrast Electric Cyan) -->
+            <controls:OutlinedTextBlock x:Name="TargetSubtitleBlock"
+                                        Grid.Row="1"
+                                        Text="即時口譯字幕準備就緒"
+                                        FontSize="26"
+                                        FontWeight="Bold"
+                                        StrokeThickness="5"
+                                        StrokeBrush="#FF000000"
+                                        FillBrush="#FF00E5FF"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Center"/>
+
+            <!-- Row 2: Source Original Speech Text (Secondary Clean Slate White) -->
+            <controls:OutlinedTextBlock x:Name="SourceSubtitleBlock"
+                                        Grid.Row="2"
+                                        Text="Original voice transcription will appear here..."
+                                        FontSize="16"
+                                        FontWeight="Normal"
+                                        StrokeThickness="3.5"
+                                        StrokeBrush="#FF000000"
+                                        FillBrush="#FFF1F5F9"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Center"
+                                        Margin="0,4,0,0"/>
+        </Grid>
+    </Border>
+</Window>

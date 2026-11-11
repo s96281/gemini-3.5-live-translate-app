@@ -1,0 +1,24 @@
+## Visual Studio / .NET / C#
+bin/
+obj/
+publish/
+dist/
+dist-test/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+.vs/
+_ReSharper*/
+*.DotSettings.user
+
+## Agents internal scratch
+.agents/
+
+## Packages
+*.nupkg
+packages/
+
+## OS generated
+.DS_Store
+Thumbs.db

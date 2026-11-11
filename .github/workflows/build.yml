@@ -1,124 +1,78 @@
-name: Build Cross-Platform Apps (Windows & Android)
+name: Build and Release .NET 9 + WPF Windows App
 
 on:
   push:
+    branches: [ 'main', 'master' ]
     tags: [ 'v*' ]
+  pull_request:
+    branches: [ 'main', 'master' ]
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release Tag to upload assets to (e.g. v1.2.0)'
+        description: 'Release Tag to upload assets to (e.g. v1.0.0)'
         required: false
-        default: 'v1.2.0'
+        default: ''
 
 jobs:
-  # 1. 在 Windows 原生環境打包 Windows EXE
-  build-windows:
-    runs-on: windows-2022
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.24.5'
-          channel: 'stable'
-          cache: true
-
-      - name: Install Dependencies
-        run: flutter pub get
-
-      - name: Enable Windows Desktop
-        run: flutter config --enable-windows-desktop
-
-      - name: Build Windows Release
-        run: flutter build windows --release
-
-      - name: Archive Windows Release
-        shell: pwsh
-        run: |
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath GeminiLiveTranslate-Windows-x64.zip
-
-      - name: Upload Windows Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: GeminiLiveTranslate-Windows-x64
-          path: GeminiLiveTranslate-Windows-x64.zip
-
-  # 2. 在 Android SDK 環境打包 Android APK
-  build-android:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.24.5'
-          channel: 'stable'
-          cache: true
-
-      - name: Install Dependencies
-        run: flutter pub get
-
-      - name: Build Android Release APK
-        run: flutter build apk --release
-
-      - name: Upload Android Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: GeminiLiveTranslate-Android-Release-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
-
-  # 3. 自動附加編譯產物至 GitHub Release
-  upload-release-assets:
-    needs: [build-windows, build-android]
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+  build-and-publish:
+    runs-on: windows-latest
     permissions:
       contents: write
     steps:
-      - name: Download Windows Artifact
-        uses: actions/download-artifact@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore Dependencies
+        run: dotnet restore GeminiLiveTranslate.sln
+
+      - name: Run Test Suites
+        run: dotnet test GeminiLiveTranslate.sln -c Release --no-restore --verbosity normal
+
+      - name: Publish Single-File Self-Contained Windows x64 Executable
+        run: dotnet publish src/GeminiLiveTranslate.App/GeminiLiveTranslate.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish
+
+      - name: Verify and Package Single-File Executable
+        shell: pwsh
+        run: |
+          if ((Test-Path -Path "publish/GeminiLiveTranslate.App.exe" -PathType Leaf) -and -not (Test-Path -Path "publish/GeminiLiveTranslate.exe" -PathType Leaf)) {
+            Move-Item -Path "publish/GeminiLiveTranslate.App.exe" -Destination "publish/GeminiLiveTranslate.exe" -Force
+          }
+          $exePath = "publish/GeminiLiveTranslate.exe"
+          if (-not (Test-Path -Path $exePath -PathType Leaf)) {
+            throw "Expected single-file executable not found at $exePath"
+          }
+          $fileInfo = Get-Item -Path $exePath
+          if ($fileInfo.Length -le 0) {
+            throw "Published executable at $exePath is empty (0 bytes)"
+          }
+          Write-Host "Verified single-file executable: $($fileInfo.FullName) ($($fileInfo.Length) bytes)"
+          Compress-Archive -Path publish/GeminiLiveTranslate.exe -DestinationPath GeminiLiveTranslate-Windows-x64.zip -Force
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: GeminiLiveTranslate-Windows-x64
-          path: windows-artifact
+          path: |
+            publish/GeminiLiveTranslate.exe
+            GeminiLiveTranslate-Windows-x64.zip
+          if-no-files-found: error
 
-      - name: Download Android Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: GeminiLiveTranslate-Android-Release-APK
-          path: android-artifact
-
-      - name: Prepare Assets
-        id: prepare
-        run: |
-          TAG="${{ github.event.inputs.tag_name || github.ref_name }}"
-          if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
-            TAG="v1.2.0"
-          fi
-          echo "target_tag=$TAG" >> $GITHUB_OUTPUT
-          cp windows-artifact/GeminiLiveTranslate-Windows-x64.zip GeminiLiveTranslate-Windows-x64-${TAG}.zip
-          cp android-artifact/app-release.apk GeminiLiveTranslate-${TAG}.apk
-          ls -la GeminiLiveTranslate*
-
-      - name: Create and Publish GitHub Release
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name != '')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.prepare.outputs.target_tag }}
-          name: "${{ steps.prepare.outputs.target_tag }} - Gemini 3.5 Live Translate"
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: "${{ github.event.inputs.tag_name || github.ref_name }} - Gemini Live Translate Windows 11"
           generate_release_notes: true
           draft: false
           prerelease: false
           files: |
-            GeminiLiveTranslate-Windows-x64-${{ steps.prepare.outputs.target_tag }}.zip
-            GeminiLiveTranslate-${{ steps.prepare.outputs.target_tag }}.apk
+            publish/GeminiLiveTranslate.exe
+            GeminiLiveTranslate-Windows-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
