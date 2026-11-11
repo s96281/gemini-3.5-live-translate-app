@@ -44,7 +44,18 @@ public sealed class RelayCommand : ICommand
 
     public void RaiseCanExecuteChanged()
     {
-        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        var handler = CanExecuteChanged;
+        if (handler != null)
+        {
+            if (SynchronizationContext.Current != null)
+            {
+                SynchronizationContext.Current.Post(_ => handler.Invoke(this, EventArgs.Empty), null);
+            }
+            else
+            {
+                handler.Invoke(this, EventArgs.Empty);
+            }
+        }
     }
 }
 
@@ -89,7 +100,7 @@ public sealed class AsyncRelayCommand : ICommand
 
     public async Task ExecuteAsync(object? parameter = null)
     {
-        if (! (_canExecute?.Invoke(parameter) ?? true))
+        if (!CanExecute(parameter))
         {
             return;
         }
@@ -113,6 +124,17 @@ public sealed class AsyncRelayCommand : ICommand
 
     public void RaiseCanExecuteChanged()
     {
-        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        var handler = CanExecuteChanged;
+        if (handler != null)
+        {
+            if (SynchronizationContext.Current != null)
+            {
+                SynchronizationContext.Current.Post(_ => handler.Invoke(this, EventArgs.Empty), null);
+            }
+            else
+            {
+                handler.Invoke(this, EventArgs.Empty);
+            }
+        }
     }
 }

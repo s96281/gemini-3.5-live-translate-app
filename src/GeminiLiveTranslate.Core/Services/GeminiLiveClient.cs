@@ -132,7 +132,7 @@ public class GeminiLiveClient : IGeminiLiveClient
     /// <inheritdoc/>
     public async Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
-        if (CurrentState == LiveConnectionState.Disconnected)
+        if (CurrentState == LiveConnectionState.Disconnected && _webSocket == null)
         {
             return;
         }
@@ -143,12 +143,14 @@ public class GeminiLiveClient : IGeminiLiveClient
         {
             _sessionCts?.Cancel();
 
-            if (_webSocket != null && _webSocket.State == WebSocketState.Open)
+            if (_webSocket != null && (_webSocket.State == WebSocketState.Open || _webSocket.State == WebSocketState.CloseReceived))
             {
-                await _webSocket.CloseAsync(
+                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(1500));
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+                await _webSocket.CloseOutputAsync(
                     WebSocketCloseStatus.NormalClosure,
                     "Client disconnected",
-                    cancellationToken).ConfigureAwait(false);
+                    linkedCts.Token).ConfigureAwait(false);
             }
         }
         catch (Exception ex)
@@ -300,11 +302,12 @@ public class GeminiLiveClient : IGeminiLiveClient
             }
 
             // Handle input transcription (speech-to-text of user/source audio)
-            if (sc.InputTranscription != null && !string.IsNullOrEmpty(sc.InputTranscription.Text))
+            var inputTrans = sc.InputTranscription ?? sc.InterimInputTranscription;
+            if (inputTrans != null && !string.IsNullOrEmpty(inputTrans.Text))
             {
-                var eventArgs = new TranscriptEventArgs(sc.InputTranscription.Text, sc.InputTranscription.IsFinal ?? false);
+                var eventArgs = new TranscriptEventArgs(inputTrans.Text, inputTrans.IsFinal ?? false);
                 SourceTranscriptReceived?.Invoke(this, eventArgs);
-                OnInputTranscriptionReceived?.Invoke(this, sc.InputTranscription.Text);
+                OnInputTranscriptionReceived?.Invoke(this, inputTrans.Text);
             }
 
             // Handle output transcription (translated text)

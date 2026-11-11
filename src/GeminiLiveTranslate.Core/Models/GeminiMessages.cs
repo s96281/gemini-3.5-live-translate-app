@@ -30,13 +30,15 @@ public class GeminiClientMessage
     {
         var modalities = includeAudio
             ? new List<string> { "AUDIO", "TEXT" }
-            : new List<string> { "TEXT" };
+            : new List<string> { "AUDIO" };
+
+        string resolvedModel = ResolveLiveModel(model);
 
         return new GeminiClientMessage
         {
             Setup = new GeminiSetupPayload
             {
-                Model = model,
+                Model = resolvedModel,
                 GenerationConfig = new GeminiGenerationConfig
                 {
                     ResponseModalities = modalities,
@@ -51,6 +53,8 @@ public class GeminiClientMessage
                         }
                     }
                 },
+                InputAudioTranscription = new Dictionary<string, object>(),
+                OutputAudioTranscription = new Dictionary<string, object>(),
                 SystemInstruction = new GeminiContent
                 {
                     Parts = new List<GeminiPart>
@@ -60,6 +64,17 @@ public class GeminiClientMessage
                 }
             }
         };
+    }
+
+    public static string ResolveLiveModel(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model)) return "models/gemini-2.0-flash-exp";
+        string trimmed = model.Trim();
+        if (trimmed.Contains("3.5") || trimmed.Contains("preview") || trimmed.Contains("2.5"))
+        {
+            return "models/gemini-2.0-flash-exp";
+        }
+        return trimmed;
     }
 
     public static GeminiClientMessage CreateAudioChunk(byte[] pcm16kBytes)
@@ -122,6 +137,14 @@ public class GeminiSetupPayload
     [JsonPropertyName("systemInstruction")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GeminiContent? SystemInstruction { get; set; }
+
+    [JsonPropertyName("inputAudioTranscription")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public object? InputAudioTranscription { get; set; }
+
+    [JsonPropertyName("outputAudioTranscription")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public object? OutputAudioTranscription { get; set; }
 }
 
 public class GeminiGenerationConfig
@@ -285,6 +308,10 @@ public class GeminiServerContent
     [JsonPropertyName("inputTranscription")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GeminiTranscription? InputTranscription { get; set; }
+
+    [JsonPropertyName("interimInputTranscription")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GeminiTranscription? InterimInputTranscription { get; set; }
 
     [JsonPropertyName("outputTranscription")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

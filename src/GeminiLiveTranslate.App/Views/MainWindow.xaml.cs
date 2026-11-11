@@ -117,7 +117,7 @@ public partial class MainWindow : Window
         Background = new SolidColorBrush(
             isLight
                 ? Color.FromRgb(0xF3, 0xF3, 0xF3)
-                : Color.FromRgb(0x20, 0x20, 0x20));
+                : Color.FromRgb(0x0A, 0x0D, 0x14));
         Foreground = new SolidColorBrush(
             isLight
                 ? Color.FromRgb(0x0F, 0x17, 0x2A)

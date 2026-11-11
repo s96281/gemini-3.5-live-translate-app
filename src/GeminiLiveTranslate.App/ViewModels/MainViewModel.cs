@@ -49,7 +49,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable, IAsyncDisposab
     private float _currentRmsLevel;
     private LiveConnectionState _connectionState = LiveConnectionState.Disconnected;
     private bool _isSessionActive;
-    private string _statusText = "準備就緒 (Ready)";
+    private string _statusText = "準備就緒";
     private AudioSource _currentAudioSource = AudioSource.SystemAudioLoopback;
     private LanguageInfo _selectedLanguage;
     private string _currentSourceTranscript = string.Empty;
@@ -115,7 +115,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable, IAsyncDisposab
         }
     }
 
-    public string SessionActionButtonText => _isSessionActive ? "停止口譯 (Stop)" : "開始即時口譯 (Start)";
+    public string SessionActionButtonText => _isSessionActive ? "停止口譯" : "開始口譯";
 
     public string StatusText
     {
@@ -181,8 +181,8 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable, IAsyncDisposab
         _currentAudioSource == AudioSource.SystemAudioLoopback || !_currentSettings.AutoPlayAudio;
 
     public string AudioSourceStatusText => _currentAudioSource == AudioSource.SystemAudioLoopback
-        ? "系統音效內錄 (System Loopback · 自動靜音防回授)"
-        : "實體麥克風 (Microphone)";
+        ? "系統音效內錄 · 自動靜音防回授"
+        : "實體麥克風";
 
     public int PlayedAudioChunkCount => Interlocked.CompareExchange(ref _playedAudioChunkCount, 0, 0);
 
@@ -263,10 +263,10 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable, IAsyncDisposab
     public bool IsDarkTheme => !string.Equals(_theme, "Light", StringComparison.OrdinalIgnoreCase);
 
     public string BackgroundBrushHex =>
-        string.Equals(_theme, "Light", StringComparison.OrdinalIgnoreCase) ? "#F3F3F3" : "#202020";
+        string.Equals(_theme, "Light", StringComparison.OrdinalIgnoreCase) ? "#F3F3F3" : "#0A0D14";
 
     public string CardBackgroundBrushHex =>
-        string.Equals(_theme, "Light", StringComparison.OrdinalIgnoreCase) ? "#FFFFFF" : "#2C2C2C";
+        string.Equals(_theme, "Light", StringComparison.OrdinalIgnoreCase) ? "#FFFFFF" : "#121622";
 
     public OverlayViewModel Overlay { get; } = new();
 
@@ -421,7 +421,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable, IAsyncDisposab
 
         LastErrorMessage = null;
         ConnectionState = LiveConnectionState.Connecting;
-        StatusText = "連線中... (Connecting)";
+        StatusText = "連線中...";
 
         try
         {
@@ -452,7 +452,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable, IAsyncDisposab
 
             IsSessionActive = true;
             ConnectionState = LiveConnectionState.Connected;
-            StatusText = "即時口譯進行中 (Live)";
+            StatusText = "即時口譯中";
         }
         catch (Exception ex)
         {
@@ -467,7 +467,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable, IAsyncDisposab
     {
         try
         {
-            _audioEngine.StopCapture();
+            await _audioEngine.StopAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -476,26 +476,31 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable, IAsyncDisposab
 
         try
         {
-            await _geminiClient.DisconnectAsync(ct).ConfigureAwait(false);
+            using var disconnectCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, disconnectCts.Token);
+            await _geminiClient.DisconnectAsync(linkedCts.Token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             LastErrorMessage = ex.Message;
         }
-
-        lock (_turnLock)
+        finally
         {
-            _turnSourceBuilder.Clear();
-            _turnTargetBuilder.Clear();
-            _segmentationService.Reset();
-        }
+            lock (_turnLock)
+            {
+                _turnSourceBuilder.Clear();
+                _turnTargetBuilder.Clear();
+                _segmentationService.Reset();
+            }
 
-        Spectrum.Reset();
-        CurrentRmsLevel = 0.0f;
-        IsSessionActive = false;
-        ConnectionState = LiveConnectionState.Disconnected;
-        StatusText = "已停止 (Disconnected)";
-        OnPropertyChanged(nameof(CurrentLevels));
+            Spectrum.Reset();
+            CurrentRmsLevel = 0.0f;
+            IsSessionActive = false;
+            ConnectionState = LiveConnectionState.Disconnected;
+            StatusText = "已停止";
+            OnPropertyChanged(nameof(CurrentLevels));
+            OnPropertyChanged(nameof(IsConnected));
+        }
     }
 
     public void SwitchAudioSource(AudioSource newSource)
@@ -685,13 +690,18 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable, IAsyncDisposab
     private void OnClientConnectionStateChanged(object? sender, ConnectionStateChangedEventArgs e)
     {
         ConnectionState = e.NewState;
+        if (e.NewState == LiveConnectionState.Disconnected || e.NewState == LiveConnectionState.Error)
+        {
+            IsSessionActive = false;
+        }
+
         StatusText = e.NewState switch
         {
-            LiveConnectionState.Connected => "即時口譯進行中 (Live)",
-            LiveConnectionState.Connecting => "連線中... (Connecting)",
-            LiveConnectionState.Reconnecting => "重新連線中... (Reconnecting)",
-            LiveConnectionState.Error => $"連線錯誤: {e.Reason ?? "Unknown"}",
-            _ => "準備就緒 (Ready)"
+            LiveConnectionState.Connected => "即時口譯中",
+            LiveConnectionState.Connecting => "連線中...",
+            LiveConnectionState.Reconnecting => "重新連線中...",
+            LiveConnectionState.Error => $"連線錯誤: {e.Reason ?? "連線失敗"}",
+            _ => "準備就緒"
         };
     }
 
@@ -855,7 +865,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable, IAsyncDisposab
 
         CurrentSourceTranscript = string.Empty;
         CurrentTargetTranscript = string.Empty;
-        StatusText = "語音中斷，重新聆聽中... (Interrupted)";
+        StatusText = "語音中斷，重新聆聽中...";
     }
 
     private void OnPrimaryTurnCompleted(object? sender, EventArgs e)

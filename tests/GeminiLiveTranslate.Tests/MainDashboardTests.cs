@@ -1111,8 +1111,8 @@ public class MainDashboardTests
         {
             Assert.Equal("Dark", vm.Theme);
             Assert.True(vm.IsDarkTheme);
-            Assert.Equal("#202020", vm.BackgroundBrushHex);
-            Assert.Equal("#2C2C2C", vm.CardBackgroundBrushHex);
+            Assert.Equal("#0A0D14", vm.BackgroundBrushHex);
+            Assert.Equal("#121622", vm.CardBackgroundBrushHex);
 
             vm.ToggleThemeCommand.Execute(null);
 
